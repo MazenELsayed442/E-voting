@@ -1,0 +1,43 @@
+{% extends "voting/base.html" %}
+
+{% block content %}
+<div class="container d-flex justify-content-center align-items-center" style="min-height: 70vh;">
+    <div class="card shadow p-4" style="max-width: 400px; width: 100%;">
+        <h3 class="text-center mb-3">📩 إرسال رمز OTP</h3>
+
+        <form method="POST" class="text-center">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label for="email" class="form-label">✉️ أدخل بريدك الإلكتروني:</label>
+                <input type="email" name="email" class="form-control text-center" required>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100">📨 إرسال OTP</button>
+        </form>
+
+        {% if messages %}
+            <div class="mt-3">
+                {% for message in messages %}
+                    <div class="alert alert-danger text-center" role="alert">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <hr>
+
+        <!-- أزرار إعادة إرسال OTP وتغيير البريد -->
+        <div class="d-flex justify-content-between">
+            <form action="{% url 'resend_otp' %}" method="POST">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-secondary">🔄 إعادة إرسال OTP</button>
+            </form>
+
+            <form action="{% url 'change_email' %}" method="GET">
+                <button type="submit" class="btn btn-outline-dark">✉️ تغيير البريد</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

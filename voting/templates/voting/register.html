@@ -1,0 +1,47 @@
+{% extends "voting/base.html" %}
+
+{% block content %}
+<div class="container mt-4 d-flex flex-column align-items-center">
+    <h2 class="text-center mb-3" style="font-size: 1.5rem; font-weight: bold; color: #343a40;">Create New Account</h2>
+
+    <div class="card shadow p-3" style="max-width: 400px; width: 100%; border-radius: 10px;">
+        <form method="post">
+            {% csrf_token %}
+
+            <div class="mb-2">
+                <label class="form-label" style="font-weight: bold;">Username</label>
+                <input type="text" name="username" class="form-control" placeholder="Enter a unique username">
+                <small class="text-muted">Must be 150 characters or fewer. Letters, digits, and @/./+/-/_ only.</small>
+            </div>
+
+            <div class="mb-2">
+                <label class="form-label" style="font-weight: bold;">Email</label>
+                <input type="email" name="email" class="form-control" placeholder="Enter your email">
+                <small class="text-muted">We'll never share your email with anyone else.</small>
+            </div>
+
+            <div class="mb-2">
+                <label class="form-label" style="font-weight: bold;">Password</label>
+                <input type="password" name="password1" class="form-control" placeholder="Enter a strong password">
+                <small class="text-muted">Must be at least 8 characters, not too similar to personal info, not a common password, and not entirely numeric.</small>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label" style="font-weight: bold;">Confirm Password</label>
+                <input type="password" name="password2" class="form-control" placeholder="Re-enter your password">
+                <small class="text-muted">Enter the same password as before for verification.</small>
+            </div>
+
+            <button type="submit" class="btn btn-dark w-100">Register</button>
+        </form>
+    </div>
+
+    {% if messages %}
+        <div class="mt-2">
+            {% for message in messages %}
+                <p class="text-danger text-center" style="font-size: 0.9rem;">{{ message }}</p>
+            {% endfor %}
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

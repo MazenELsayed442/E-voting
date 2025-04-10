@@ -1,0 +1,158 @@
+{% extends "voting/base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container text-center">
+    <h1 class="mb-4">Voting Results</h1>
+    
+    <div class="row justify-content-center">
+        <!-- الرئيس -->
+        <div class="col-md-4 mb-3">
+            <div class="category-box">
+                <h2 class="category-title">President</h2>
+                <div class="mb-2"><strong>Time Remaining: <span class="countdown" id="timer1"></span></strong></div>
+                <div class="mb-3">
+                    <label>Candidate 1</label>
+                    <div class="progress">
+                        <div class="progress-bar bg-primary" style="width: 55%;">55%</div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label>Candidate 2</label>
+                    <div class="progress">
+                        <div class="progress-bar bg-success" style="width: 45%;">45%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- نائب الرئيس -->
+        <div class="col-md-4 mb-3">
+            <div class="category-box">
+                <h2 class="category-title">Vice President</h2>
+                <div class="mb-2"><strong>Time Remaining: <span class="countdown" id="timer2"></span></strong></div>
+                <div class="mb-3">
+                    <label>Candidate A</label>
+                    <div class="progress">
+                        <div class="progress-bar bg-warning" style="width: 60%;">60%</div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label>Candidate B</label>
+                    <div class="progress">
+                        <div class="progress-bar bg-info" style="width: 40%;">40%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- السكرتير -->
+        <div class="col-md-4 mb-3">
+            <div class="category-box">
+                <h2 class="category-title">Secretary</h2>
+                <div class="mb-2"><strong>Time Remaining: <span class="countdown" id="timer3"></span></strong></div>
+                <div class="mb-3">
+                    <label>Candidate X</label>
+                    <div class="progress">
+                        <div class="progress-bar bg-danger" style="width: 70%;">70%</div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label>Candidate Y</label>
+                    <div class="progress">
+                        <div class="progress-bar bg-secondary" style="width: 30%;">30%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- زر المشاركة -->
+    <div class="text-center mt-4">
+        <a href="{% url 'vote' %}" class="btn btn-participate">Participate</a>
+    </div>
+</div>
+
+<style>
+    .category-box {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+        padding: 15px;
+        text-align: center;
+    }
+
+    .category-title {
+        font-size: 20px;
+        font-weight: bold;
+        color: #343a40;
+        margin-bottom: 10px;
+    }
+
+    .progress {
+        height: 20px;
+        font-size: 12px;
+        font-weight: bold;
+    }
+
+    .countdown {
+        font-size: 14px;
+        font-weight: bold;
+        color: #dc3545;
+    }
+
+    .btn-participate {
+        background-color: white;
+        color: black;
+        font-size: 18px;
+        padding: 10px 25px;
+        border-radius: 8px;
+        font-weight: bold;
+        text-decoration: none;
+        transition: 0.3s;
+        border: 2px solid black;
+    }
+
+    .btn-participate:hover {
+        background-color: #e0e0e0;
+        color: black;
+        transform: scale(1.05);
+    }
+	
+</style>
+
+<script>
+    function startCountdown(elementId, endTime) {
+        function updateCountdown() {
+            let now = new Date().getTime();
+            let timeLeft = endTime - now;
+
+            if (timeLeft > 0) {
+                let days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
+                let hours = Math.floor((timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                let minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+                let seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+
+                document.getElementById(elementId).innerText =
+                    (days > 0 ? days + "d " : "") + 
+                    hours.toString().padStart(2, '0') + ":" +
+                    minutes.toString().padStart(2, '0') + ":" +
+                    seconds.toString().padStart(2, '0');
+            } else {
+                document.getElementById(elementId).innerText = "Voting Ended";
+            }
+        }
+        setInterval(updateCountdown, 1000);
+        updateCountdown();
+    }
+
+    let voteEndTime1 = new Date().getTime() + (3 * 24 * 60 * 60 * 1000);
+    let voteEndTime2 = new Date().getTime() + (2 * 24 * 60 * 60 * 1000);
+    let voteEndTime3 = new Date().getTime() + (4 * 24 * 60 * 60 * 1000);
+
+    startCountdown("timer1", voteEndTime1);
+    startCountdown("timer2", voteEndTime2);
+    startCountdown("timer3", voteEndTime3);
+</script>
+
+{% endblock %}

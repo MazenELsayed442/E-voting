@@ -1,0 +1,26 @@
+{% extends "voting/base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <h2 class="text-center mb-4">Two-Factor Authentication</h2>
+            <div class="card shadow p-4">
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label">Enter Google Authenticator Code</label>
+                        <input type="text" name="otp" class="form-control" placeholder="123456" required>
+                    </div>
+                    <button type="submit" class="btn btn-dark w-100">Verify</button>
+                </form>
+            </div>
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-danger mt-3 text-center">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

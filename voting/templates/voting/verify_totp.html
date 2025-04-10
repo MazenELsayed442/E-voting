@@ -1,0 +1,26 @@
+{% extends "voting/base.html" %}
+
+{% block content %}
+  <div class="otp-container">
+    <h2>Google Authenticator Verification</h2>
+
+    <p>Enter the 6-digit code from your Google Authenticator app.</p>
+
+    <form method="POST" class="otp-form">
+      {% csrf_token %}
+      
+      <label for="otp">Enter OTP:</label>
+      <input type="text" name="otp" required class="otp-input">
+
+      <button type="submit" class="btn btn-primary">Verify</button>
+    </form>
+
+    {% if messages %}
+      <div class="message-box">
+        {% for message in messages %}
+          <p class="error-message">{{ message }}</p>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
+{% endblock %}

@@ -1,0 +1,52 @@
+{% extends "voting/base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2 class="text-center mb-4">🗳Voting</h2>
+
+    {% for category_name, candidates in candidates_by_category.items %}
+        <div class="card mb-4 shadow">
+            <div class="card-header text-center">
+                <h4>{{ category_name }}</h4>
+            </div>
+            <div class="card-body">
+                {% for candidate in candidates %}
+                    <div class="candidate text-center mb-3">
+                        <h5>{{ candidate.name }}</h5>
+                        <img src="{{ candidate.image.url }}" alt="Candidate Image" class="img-thumbnail" width="150">
+                        <p>{{ candidate.description }}</p>
+                        
+                        <div class="d-flex justify-content-center">
+                            <a href="{% url 'confirm_vote' candidate.id %}" class="btn btn-success me-2">
+                                ✅ Vote
+                            </a>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% endfor %}
+</div>
+
+<style>
+    .category-btn {
+        font-size: 20px;
+        font-weight: bold;
+        color: #007bff;
+        text-decoration: none;
+    }
+    .category-btn:hover {
+        text-decoration: underline;
+    }
+    .candidate {
+        border: 1px solid #ddd;
+        padding: 15px;
+        border-radius: 8px;
+        background: #f9f9f9;
+    }
+    .btn-success {
+        font-size: 16px;
+        font-weight: bold;
+    }
+</style>
+{% endblock %}

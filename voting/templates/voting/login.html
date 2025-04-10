@@ -1,0 +1,44 @@
+{% extends "voting/base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <h2 class="text-center mb-4">Login</h2>
+
+            <div class="card shadow p-4">
+                <form method="post">
+                    {% csrf_token %}
+
+                    <!-- Username or Email Field -->
+                    <div class="mb-3">
+                        <label class="form-label">Username or Email</label>
+                        <input type="text" name="username" class="form-control" placeholder="Enter your username or email" required autocomplete="username">
+                    </div>
+
+                    <!-- Password Field -->
+                    <div class="mb-3">
+                        <label class="form-label">Password</label>
+                        <input type="password" name="password" class="form-control" placeholder="Enter your password" required autocomplete="current-password">
+                        <small class="text-muted">Make sure you enter the correct password.</small>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" class="btn btn-dark w-100">Login</button>
+                </form>
+            </div>
+
+            <!-- Display Messages -->
+            {% if messages %}
+                <div class="alert mt-3">
+                    {% for message in messages %}
+                        <div class="alert {% if message.tags == 'success' %}alert-success{% elif message.tags == 'error' %}alert-danger{% else %}alert-warning{% endif %} text-center">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

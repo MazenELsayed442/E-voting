@@ -1,0 +1,131 @@
+{% extends 'voting/base.html' %}
+
+{% block content %}
+<div class="timer-container">
+    <span id="countdown"></span>
+</div>
+
+<script>
+    let voteEndTime = new Date().getTime() + (3 * 24 * 60 * 60 * 1000); // مثال: 3 أيام
+
+    function updateCountdown() {
+        let now = new Date().getTime();
+        let timeLeft = voteEndTime - now;
+
+        if (timeLeft > 0) {
+            let days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
+            let hours = Math.floor((timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            let minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+            let seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+
+            document.getElementById("countdown").innerText =
+                `${days}d ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        } else {
+            document.getElementById("countdown").innerText = "00:00:00";
+            clearInterval(timerInterval);
+        }
+    }
+
+    let timerInterval = setInterval(updateCountdown, 1000);
+    updateCountdown();
+</script>
+
+<style>
+    .timer-container {
+        font-size: 20px;
+        font-weight: bold;
+        color: #fff;
+        background: #28a745;
+        padding: 10px 20px;
+        border-radius: 8px;
+        display: inline-block;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        margin: 20px auto;
+    }
+
+    .container {
+        text-align: center;
+        padding: 20px;
+    }
+
+    .title {
+        font-size: 28px;
+        font-weight: bold;
+        color: #333;
+        margin-bottom: 20px;
+        text-transform: uppercase;
+    }
+
+    .candidates-list {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 20px;
+        max-width: 800px;
+        margin: auto;
+    }
+
+    .candidate-item {
+        background: #ffffff;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.15);
+        text-align: center;
+        cursor: pointer;
+        transition: 0.3s;
+        width: 250px;
+        border: 2px solid transparent;
+    }
+
+    .candidate-item:hover {
+        background: #f0f2f5;
+        transform: translateY(-2px);
+        border-color: #343a40;
+    }
+
+    .candidate-name {
+        font-size: 20px;
+        font-weight: bold;
+        color: #333;
+        margin-bottom: 10px;
+    }
+
+    .vote-btn {
+        background: #343a40;
+        color: white;
+        border: 2px solid #343a40;
+        padding: 10px 15px;
+        cursor: pointer;
+        border-radius: 8px;
+        margin-top: 12px;
+        display: inline-block;
+        text-decoration: none;
+        font-size: 16px;
+        font-weight: bold;
+        transition: 0.3s;
+    }
+
+    .vote-btn:hover {
+        background: white;
+        color: #343a40;
+        transform: scale(1.05);
+    }
+</style>
+
+<div class="container">
+    <h2 class="title">Voting for {{ category }}</h2>
+
+    {% if candidates %}
+        <div class="candidates-list">
+            {% for candidate in candidates %}
+                <div class="candidate-item">
+                    <h3 class="candidate-name">{{ candidate.name }}</h3>
+                    <a href="{% url 'get_candidate_details' candidate.id %}" class="vote-btn">Select</a>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p class="text-center">No candidates available for this category.</p>
+    {% endif %}
+</div>
+{% endblock %}

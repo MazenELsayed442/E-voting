@@ -1,0 +1,240 @@
+{% extends 'voting/base.html' %}
+
+{% block content %}
+<div class="container">
+    <h2 class="text-center" style="font-size: 24px; font-weight: 600; color: black;">Candidate details</h2>
+
+    <div class="candidate-profile">
+        <img src="{{ candidate.image.url }}" alt="Candidate photo" class="candidate-image">
+        <h3 class="candidate-name">{{ candidate.name }}</h3>
+        <p class="candidate-description">{{ candidate.description }}</p>
+
+        <!-- حقول إدخال الأكواد -->
+        <div class="otp-container">
+            <label>Google Authentication Code</label>
+            <input type="text" id="googleOtpInput" placeholder="Enter Google Auth Code">
+            <button class="verify-btn" onclick="verifyGoogleOTP()">Verify</button>
+
+            <label>Gmail Verification Code</label>
+            <div style="display: flex; gap: 10px;">
+                <input type="text" id="gmailOtpInput" placeholder="Enter Gmail Code" style="flex: 1;">
+                <button class="verify-btn" onclick="sendGmailOTP()">Send Code</button>
+            </div>
+            <button class="verify-btn" onclick="verifyGmailOTP()">Verify</button>
+        </div>
+
+        <!-- زر حفظ محفظة MetaMask -->
+        <button class="wallet-btn" onclick="connectMetaMask()">Connect MetaMask</button>
+        <p id="walletAddress" style="margin-top: 10px; font-size: 14px; color: green;"></p>
+
+        <!-- زر التصويت -->
+        <form method="POST" action="{% url 'vote_candidate' candidate.id %}">
+            {% csrf_token %}
+            <button type="button" id="voteButton" class="btn btn-success" disabled onclick="confirmVoteWithWallet()">Vote</button>
+        </form>
+    </div>
+</div>
+
+<style>
+    .candidate-profile {
+        text-align: center;
+        background: #fff;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        max-width: 500px;
+        margin: auto;
+    }
+    .candidate-image {
+        width: 150px;
+        height: 150px;
+        border-radius: 50%;
+        object-fit: cover;
+        margin-bottom: 10px;
+    }
+    .candidate-name {
+        font-size: 22px;
+        font-weight: bold;
+        color: black;
+    }
+    .candidate-description {
+        font-size: 16px;
+        color: #333;
+    }
+    .vote-btn, .verify-btn, .wallet-btn {
+        display: inline-block;
+        background: white;
+        color: black;
+        padding: 10px 15px;
+        text-decoration: none;
+        border-radius: 5px;
+        border: 2px solid black;
+        margin-top: 10px;
+        transition: 0.3s;
+        font-weight: bold;
+        cursor: pointer;
+    }
+    .vote-btn[disabled] {
+        background: #ccc;
+        border: 2px solid #999;
+        cursor: not-allowed;
+    }
+    .vote-btn[disabled]:hover {
+        cursor: not-allowed;
+    }
+    .otp-container {
+        margin-top: 15px;
+        text-align: left;
+    }
+    label {
+        font-size: 14px;
+        font-weight: bold;
+        color: #555;
+        display: block;
+        margin-top: 10px;
+    }
+    input {
+        width: 100%;
+        padding: 8px;
+        margin-top: 5px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+    }
+</style>
+
+<script>
+    let googleVerified = false;
+    let gmailVerified = false;
+    let walletConnected = false;
+
+    function verifyGoogleOTP() {
+        let googleOtp = document.getElementById("googleOtpInput").value;
+        if (googleOtp) {
+            fetch("{% url 'verify_google_otp_ajax' %}", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": "{{ csrf_token }}"
+                },
+                body: JSON.stringify({ otp: googleOtp })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    googleVerified = true;
+                    alert("Google OTP Verified");
+                    checkVoteEligibility();
+                } else {
+                    alert("Invalid Google OTP");
+                }
+            });
+        } else {
+            alert("Please enter a valid Google Authenticator Code!");
+        }
+    }
+
+    function sendGmailOTP() {
+        fetch("{% url 'send_gmail_otp_ajax' %}", {
+            method: "POST",
+            headers: {
+                "X-CSRFToken": "{{ csrf_token }}"
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                alert("OTP sent to your Gmail");
+            } else {
+                alert("Error sending OTP");
+            }
+        });
+    }
+
+    function verifyGmailOTP() {
+        let gmailOtp = document.getElementById("gmailOtpInput").value;
+        if (gmailOtp) {
+            fetch("{% url 'verify_gmail_otp_ajax' %}", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": "{{ csrf_token }}"
+                },
+                body: JSON.stringify({ otp: gmailOtp })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    gmailVerified = true;
+                    alert("Gmail OTP Verified");
+                    checkVoteEligibility();
+                } else {
+                    alert("Invalid Gmail OTP");
+                }
+            });
+        } else {
+            alert("Please enter a valid Gmail Code!");
+        }
+    }
+
+    async function connectMetaMask() {
+        if (typeof window.ethereum !== 'undefined') {
+            try {
+                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                const walletAddress = accounts[0];
+                document.getElementById("walletAddress").innerText = `Connected: ${walletAddress}`;
+                walletConnected = true;
+                checkVoteEligibility();
+            } catch (error) {
+                console.error("MetaMask connection error:", error);
+            }
+        } else {
+            alert("MetaMask is not installed. Please install it to continue.");
+        }
+    }
+
+    function checkVoteEligibility() {
+        let voteButton = document.getElementById("voteButton");
+        if (googleVerified && gmailVerified && walletConnected) {
+            voteButton.removeAttribute("disabled");
+        } else {
+            voteButton.setAttribute("disabled", "true");
+        }
+    }
+	async function confirmVoteWithWallet() {
+    if (!walletConnected) {
+        alert("🦊 Please connect your wallet first!");
+        return;
+    }
+
+    const message = `Confirm your vote for candidate: {{ candidate.name }}`;
+    try {
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        const from = accounts[0];
+
+        const signature = await window.ethereum.request({
+            method: 'personal_sign',
+            params: [message, from],
+        });
+
+        alert("✅ Signature successful! Your vote is confirmed via MetaMask.");
+        console.log("Signature:", signature);
+
+        // send the signature for the server later ###
+        // fetch("{% url 'save_signature' %}", {
+        //     method: "POST",
+        //     headers: {
+        //         "Content-Type": "application/json",
+        //         "X-CSRFToken": "{{ csrf_token }}"
+        //     },
+        //     body: JSON.stringify({ wallet: from, signature: signature })
+        // });
+
+    } catch (err) {
+        console.error(err);
+        alert("❌ Signature failed or canceled.");
+    }
+}
+
+</script>
+{% endblock %}
+

@@ -1,0 +1,110 @@
+{% extends "voting/base.html" %}
+
+{% block content %}
+  <style>
+    .otp-container {
+        max-width: 400px;
+        margin: 0 auto;
+        padding: 20px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        background-color: #f9f9f9;
+    }
+
+    .qr-container {
+        text-align: center;
+        margin-bottom: 20px;
+    }
+
+    .qr-container img {
+        width: 120px;
+        height: auto;
+        border: 2px solid #ddd;
+        border-radius: 8px;
+        padding: 5px;
+    }
+
+    .otp-form {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .otp-input {
+        padding: 8px;
+        font-size: 14px;
+        border-radius: 5px;
+        border: 1px solid #ccc;
+    }
+
+    .message-box {
+        text-align: center;
+        margin-top: 10px;
+    }
+
+    .otp-actions {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 15px;
+    }
+
+    .btn-primary {
+        background-color: #343a40;
+        border-color: #343a40;
+    }
+
+    .btn-primary:hover {
+        background-color: #23272b;
+    }
+  </style>
+
+  <div class="otp-container">
+    <h2>OTP Verification</h2>
+
+    <p>A verification code has been sent to: <strong>{{ email }}</strong></p>
+
+    {% if user.qr_code %}
+      <div class="qr-container">
+        <p>Scan this QR code with Google Authenticator:</p>
+        <img src="{{ user.qr_code.url }}" alt="QR Code">
+      </div>
+    {% else %}
+      <p style="color: red;">⚠ QR Code not available. Try re-registering.</p>
+    {% endif %}
+
+    <hr>
+
+    <form method="POST" class="otp-form">
+      {% csrf_token %}
+
+      <label for="gmail_otp">Enter OTP from Email:</label>
+      <input type="text" name="gmail_otp" required class="otp-input">
+
+      <label for="authenticator_otp">Enter OTP from Google Authenticator:</label>
+      <input type="text" name="authenticator_otp" required class="otp-input">
+
+      <button type="submit" class="btn btn-primary">Verify</button>
+    </form>
+
+    {% if messages %}
+      <div class="message-box">
+        {% for message in messages %}
+          <p class="error-message">{{ message }}</p>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <hr>
+
+    <div class="otp-actions">
+      <form action="{% url 'resend_otp' %}" method="POST">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-secondary">Resend OTP</button>
+      </form>
+
+      <form action="{% url 'change_email' %}" method="GET">
+        <button type="submit" class="btn btn-secondary">Change Email</button>
+      </form>
+    </div>
+  </div>
+{% endblock %}

@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تأكيد التصويت</title>
+</head>
+<body>
+    <h2>تأكيد التصويت</h2>
+    <p>الرجاء إدخال رمز المصادقة الثنائية من Google Authenticator لإكمال التصويت.</p>
+
+    {% if messages %}
+        {% for message in messages %}
+            <p style="color: red;">{{ message }}</p>
+        {% endfor %}
+    {% endif %}
+
+    <form method="post">
+        {% csrf_token %}
+        <label for="otp">رمز التحقق:</label>
+        <input type="text" name="otp" required>
+        <button type="submit">تأكيد التصويت</button>
+    </form>
+</body>
+</html>

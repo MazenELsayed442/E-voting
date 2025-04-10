@@ -1,0 +1,67 @@
+{% extends "voting/base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container text-center d-flex flex-column align-items-center">
+    <h2 class="category-title">Available Voting Categories</h2>
+
+    <div class="d-flex justify-content-center gap-3 flex-wrap">
+        {% for category in categories %}
+            <a href="{% url 'vote_category' category %}" class="category-btn btn btn-light shadow px-4 py-3">
+                {{ category }}
+            </a>
+        {% endfor %}
+    </div>
+
+    <!-- ✅ إضافة GIF في المساحة الفارغة -->
+    <div class="gif-container mt-4">
+        <img src="{% static 'images/vote-animation.gif' %}" alt="Voting animation">
+    </div>
+</div>
+
+<style>
+    /* ✅ تحسين شكل العنوان */
+    .category-title {
+        font-size: 1.8rem;
+        font-weight: bold;
+        color: #343a40;
+        margin-bottom: 20px;
+        text-transform: uppercase;
+    }
+
+    /* ✅ تحسين مظهر الأزرار */
+    .category-btn {
+        font-size: 18px;
+        font-weight: bold;
+        color: #343a40;
+        border: 2px solid #343a40;
+        transition: all 0.3s ease-in-out;
+        border-radius: 8px;
+    }
+
+    .category-btn:hover {
+        background-color: #343a40;
+        color: white;
+        text-decoration: none;
+    }
+
+    /* ✅ ضبط مكان GIF */
+    .gif-container {
+        display: flex;
+        justify-content: center;
+        margin-top: 20px;
+    }
+
+    .gif-container img {
+        width: 120px;
+        height: auto;
+        animation: fadeIn 1s ease-in-out;
+    }
+
+    /* ✅ تأثير حركة عند ظهور الـ GIF */
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+{% endblock %}
