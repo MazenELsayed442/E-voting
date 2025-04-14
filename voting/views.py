@@ -14,6 +14,8 @@ from .models import CustomUser, Candidate, Voter
 from .forms import CustomUserCreationForm, LoginForm
 from django.http import JsonResponse
 import json
+from django.shortcuts import redirect
+
 
 def home(request):
     categories = ["President", "Vice President", "Secretary"]
@@ -58,6 +60,16 @@ def register(request):
 
     return render(request, "voting/register.html", {"form": form})
 
+from django.contrib.auth.decorators import login_required
+
+def verified_required(view_func):
+    @login_required(login_url="/login/")
+    def _wrapped_view(request, *args, **kwargs):
+        if not request.user.is_verified:
+            messages.error(request, "❌ You need to verify your account before accessing this page.")
+            return redirect("home")  
+        return view_func(request, *args, **kwargs)
+    return _wrapped_view
 
 
 User = get_user_model()
@@ -239,6 +251,7 @@ def change_email(request):
 
 
 @login_required(login_url="/login/")
+@verified_required
 def vote_home(request):
     categories = ["President", "Vice President", "Secretary"]
     return render(request, "voting/vote_home.html", {"categories": categories})
@@ -261,6 +274,7 @@ CANDIDATES = {
 
 
 @login_required(login_url="/login/")
+@verified_required
 def vote_category(request, category):
     allowed_categories = ["President", "Vice President", "Secretary"]
 
