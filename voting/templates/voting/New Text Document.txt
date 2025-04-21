@@ -1,9 +1,0 @@
-{% extends "voting/base.html" %}
-
-{% block content %}
-<div class="container text-center">
-    <h2>✅ Your vote has been recorded!</h2>
-    <p>Thank you for voting for <strong>{{ candidate.name }}</strong>.</p>
-    <a href="{% url 'vote_home' %}" class="btn btn-primary">Back to Voting</a>
-</div>
-{% endblock %}

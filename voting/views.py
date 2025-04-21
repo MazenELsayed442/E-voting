@@ -1,26 +1,38 @@
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth import login, logout, authenticate, get_user_model, get_backends
-from django.contrib.auth.decorators import login_required
-from django.contrib import messages
-from django.core.mail import send_mail
-from django.conf import settings
-from django.http import HttpResponse, JsonResponse
-from django.core.files.base import ContentFile
+import json
 import random
+from io import BytesIO
+
+# Third-party imports
 import pyotp
 import qrcode
-from io import BytesIO
-from .models import CustomUser, Candidate, Voter
+from django.conf import settings
+from django.contrib import messages
+from django.contrib.auth import (
+    authenticate,
+    get_backends,
+    get_user_model,
+    login,
+    logout,
+)
+from django.contrib.auth.decorators import login_required
+from django.core.files.base import ContentFile
+from django.core.mail import send_mail
+from django.http import HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render, get_object_or_404
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
+
+# Local application imports
 from .forms import CustomUserCreationForm, LoginForm
-from django.http import JsonResponse
-import json
-from django.shortcuts import redirect
+from .models import Candidate, CustomUser, Voter
+from .utils.contract_utils import get_vote_count, submit_vote
+
+
 
 
 def home(request):
     categories = ["President", "Vice President", "Secretary"]
     return render(request, "voting/home.html", {"categories": categories})
-
 
 
 def register(request):
@@ -60,7 +72,6 @@ def register(request):
 
     return render(request, "voting/register.html", {"form": form})
 
-from django.contrib.auth.decorators import login_required
 
 def verified_required(view_func):
     @login_required(login_url="/login/")
@@ -73,7 +84,6 @@ def verified_required(view_func):
 
 
 User = get_user_model()
-
 
 def login_view(request):
     if request.method == "POST":
@@ -98,8 +108,6 @@ def login_view(request):
         form = LoginForm()
 
     return render(request, "voting/login.html", {"form": form})
-
-
 
 
 def verify_totp(request, candidate_id):
@@ -131,10 +139,6 @@ def verify_totp(request, candidate_id):
             return redirect("login")  
 
     return render(request, "voting/verify_totp.html", {"candidate": candidate})
-
-
-
-
 
 
 @login_required(login_url="/login/")
@@ -169,7 +173,6 @@ def send_otp(request):
 
     messages.success(request, "✅ OTP has been sent to your email.")
     return redirect("verify_otp")
-
 
 
 def verify_otp(request): 
@@ -217,8 +220,6 @@ def verify_otp(request):
 
     return render(request, "voting/verify_otp.html", {"email": email})
 
-
-
     
 # Resend OTP
 def resend_otp(request):
@@ -256,6 +257,7 @@ def vote_home(request):
     categories = ["President", "Vice President", "Secretary"]
     return render(request, "voting/vote_home.html", {"categories": categories})
 
+
 CANDIDATES = {
     "President": [
         {"id": 1, "name": "Ahmed", "image": "/media/ahmed.jpg", "description": "description", "votes": 0},
@@ -270,7 +272,6 @@ CANDIDATES = {
         {"id": 6, "name": "Laila", "image": "/media/laila.jpg", "description": "description", "votes": 0},
     ],
 }
-
 
 
 @login_required(login_url="/login/")
@@ -312,33 +313,37 @@ def vote_category(request, category):
 
     return render(request, "voting/vote_category.html", {"category": category, "candidates": candidates})
 
-
-
-
  
+
 def get_candidate_details(request, candidate_id):
     candidate = get_object_or_404(Candidate, id=candidate_id)
 
-    
+    # Load ABI from the correct path (inside blockchain/ folder)
+    try:
+        with open("blockchain/artifacts/contracts/Voting.sol/Voting.json", "r") as f:
+            contract_abi = json.load(f)["abi"]
+    except FileNotFoundError:
+        contract_abi = []  # Fallback if ABI not found
+
+    context = {
+        "candidate": candidate,
+        "contract_abi": json.dumps(contract_abi),  # Convert to string
+        "contract_address": "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+    }
+
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         return JsonResponse({
             'name': candidate.name,
-            'image_url': candidate.image.url,  
+            'image_url': candidate.image.url,
             'description': candidate.description,
         })
 
-    return render(request, "voting/candidate_details.html", {"candidate": candidate})
-
-
-
-
+    return render(request, "voting/candidate_details.html", context)
 
 def vote_candidate(request, candidate_id):
     candidate = get_object_or_404(Candidate, id=candidate_id)  
     return render(request, "voting/vote_candidate.html", {"candidate": candidate})
 
-from django.shortcuts import render, get_object_or_404, redirect
-from .models import Candidate
 
 def confirm_vote(request, candidate_id):
     candidate = get_object_or_404(Candidate, id=candidate_id)
@@ -352,9 +357,6 @@ def confirm_vote(request, candidate_id):
     return redirect("vote_home")
 
 
-
-
-
 def save_wallet(request):
     if request.method == "POST":
         data = json.loads(request.body)
@@ -366,8 +368,6 @@ def save_wallet(request):
         return JsonResponse({"message": "Wallet saved successfully!"})
     return JsonResponse({"error": "Invalid request"}, status=400)
 
-from django.views.decorators.csrf import csrf_exempt
-from django.utils.decorators import method_decorator
 
 @login_required
 def send_gmail_otp_ajax(request):
@@ -384,6 +384,7 @@ def send_gmail_otp_ajax(request):
     )
 
     return JsonResponse({"success": True, "message": "✅ OTP sent to your email."})
+
 
 @csrf_exempt
 @login_required
@@ -412,7 +413,6 @@ def verify_google_otp_ajax(request):
         return JsonResponse({"success": False})
 
 
-
 def login_otp(request):
     user_id = request.session.get("pending_user_id")
 
@@ -436,6 +436,7 @@ def login_otp(request):
 
     return render(request, "voting/login_otp.html", {"email": user.email})
 
+
 def save_signature(request):
     if request.method == "POST":
         data = json.loads(request.body)
@@ -447,3 +448,33 @@ def save_signature(request):
 
         return JsonResponse({"status": "success"})
     return JsonResponse({"status": "invalid request"}, status=400)
+
+### 4/20/2025
+def vote_count(request):
+    # Get vote count (GET request)
+    if request.method == "GET":
+        candidate = request.GET.get("candidate", "Alice")  # Default to Alice
+        count = get_vote_count(candidate)
+        return JsonResponse({candidate: count})
+    return JsonResponse({"error": "Invalid request method"})
+
+# Submit vote (POST request)
+@csrf_exempt  # Remove this in production and handle CSRF properly
+def submit_vote_view(request):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            candidate = data.get("candidate")
+            private_key = data.get("private_key")  # Security risk! See note below
+            
+            # Validate input
+            if not candidate or not private_key:
+                return JsonResponse({"error": "Missing parameters"}, status=400)
+            
+            txn_hash = submit_vote(candidate, private_key)
+            return JsonResponse({"txn_hash": txn_hash})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+    return JsonResponse({"error": "Invalid request method"}, status=405)
+
+
