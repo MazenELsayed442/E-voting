@@ -6,7 +6,7 @@ async function main() {
     console.log("Deploying with account:", signer.address);
 
     const Voting = await hre.ethers.getContractFactory("Voting");
-    const candidates = ["Alice", "Bob", "Charlie"];
+    const candidates = ["Alice", "Bob", "ahmed", "Ahmed", "Charlie"];
     
     console.log("Deploying Voting contract...");
     const voting = await Voting.deploy(candidates, { gasLimit: 3000000 });

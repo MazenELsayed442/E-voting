@@ -1,6 +1,11 @@
 {% extends 'voting/base.html' %}
-
+<!-- In your Django template (inside <script> tags) -->
 {% block content %}
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+<script>
+    const CONTRACT_ADDRESS = "{{ contract_address }}";
+    const CONTRACT_ABI = JSON.parse('{{ contract_abi|escapejs }}');
+</script>
 <div class="container">
     <h2 class="text-center" style="font-size: 24px; font-weight: 600; color: black;">Candidate details</h2>
 
@@ -30,7 +35,8 @@
         <!-- زر التصويت -->
         <form method="POST" action="{% url 'vote_candidate' candidate.id %}">
             {% csrf_token %}
-            <button type="button" id="voteButton" class="btn btn-success" disabled onclick="confirmVoteWithWallet()">Vote</button>
+            <button type="button" id="voteButton" class="btn btn-success" disabled
+                onclick="confirmVoteWithWallet()">Vote</button>
         </form>
     </div>
 </div>
@@ -45,6 +51,7 @@
         max-width: 500px;
         margin: auto;
     }
+
     .candidate-image {
         width: 150px;
         height: 150px;
@@ -52,16 +59,21 @@
         object-fit: cover;
         margin-bottom: 10px;
     }
+
     .candidate-name {
         font-size: 22px;
         font-weight: bold;
         color: black;
     }
+
     .candidate-description {
         font-size: 16px;
         color: #333;
     }
-    .vote-btn, .verify-btn, .wallet-btn {
+
+    .vote-btn,
+    .verify-btn,
+    .wallet-btn {
         display: inline-block;
         background: white;
         color: black;
@@ -74,18 +86,22 @@
         font-weight: bold;
         cursor: pointer;
     }
+
     .vote-btn[disabled] {
         background: #ccc;
         border: 2px solid #999;
         cursor: not-allowed;
     }
+
     .vote-btn[disabled]:hover {
         cursor: not-allowed;
     }
+
     .otp-container {
         margin-top: 15px;
         text-align: left;
     }
+
     label {
         font-size: 14px;
         font-weight: bold;
@@ -93,6 +109,7 @@
         display: block;
         margin-top: 10px;
     }
+
     input {
         width: 100%;
         padding: 8px;
@@ -106,7 +123,6 @@
     let googleVerified = false;
     let gmailVerified = false;
     let walletConnected = false;
-
     function verifyGoogleOTP() {
         let googleOtp = document.getElementById("googleOtpInput").value;
         if (googleOtp) {
@@ -118,16 +134,16 @@
                 },
                 body: JSON.stringify({ otp: googleOtp })
             })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    googleVerified = true;
-                    alert("Google OTP Verified");
-                    checkVoteEligibility();
-                } else {
-                    alert("Invalid Google OTP");
-                }
-            });
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        googleVerified = true;
+                        alert("Google OTP Verified");
+                        checkVoteEligibility();
+                    } else {
+                        alert("Invalid Google OTP");
+                    }
+                });
         } else {
             alert("Please enter a valid Google Authenticator Code!");
         }
@@ -140,14 +156,14 @@
                 "X-CSRFToken": "{{ csrf_token }}"
             }
         })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                alert("OTP sent to your Gmail");
-            } else {
-                alert("Error sending OTP");
-            }
-        });
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    alert("OTP sent to your Gmail");
+                } else {
+                    alert("Error sending OTP");
+                }
+            });
     }
 
     function verifyGmailOTP() {
@@ -161,16 +177,16 @@
                 },
                 body: JSON.stringify({ otp: gmailOtp })
             })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    gmailVerified = true;
-                    alert("Gmail OTP Verified");
-                    checkVoteEligibility();
-                } else {
-                    alert("Invalid Gmail OTP");
-                }
-            });
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        gmailVerified = true;
+                        alert("Gmail OTP Verified");
+                        checkVoteEligibility();
+                    } else {
+                        alert("Invalid Gmail OTP");
+                    }
+                });
         } else {
             alert("Please enter a valid Gmail Code!");
         }
@@ -200,41 +216,38 @@
             voteButton.setAttribute("disabled", "true");
         }
     }
-	async function confirmVoteWithWallet() {
+
+
+    
+    async function confirmVoteWithWallet() {
     if (!walletConnected) {
-        alert("🦊 Please connect your wallet first!");
+        alert("🦊 Connect MetaMask first!");
         return;
     }
 
-    const message = `Confirm your vote for candidate: {{ candidate.name }}`;
     try {
-        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-        const from = accounts[0];
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        const signer = provider.getSigner();
+        const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
 
-        const signature = await window.ethereum.request({
-            method: 'personal_sign',
-            params: [message, from],
-        });
+        // Get candidate name from Django context
+        const candidateName = "{{ candidate.name }}"; 
 
-        alert("✅ Signature successful! Your vote is confirmed via MetaMask.");
-        console.log("Signature:", signature);
+        // Add gas limit to avoid estimation issues
+        const txn = await contract.vote(candidateName, { gasLimit: 1000000 });
+        await txn.wait();
 
-        // send the signature for the server later ###
-        // fetch("{% url 'save_signature' %}", {
-        //     method: "POST",
-        //     headers: {
-        //         "Content-Type": "application/json",
-        //         "X-CSRFToken": "{{ csrf_token }}"
-        //     },
-        //     body: JSON.stringify({ wallet: from, signature: signature })
-        // });
-
-    } catch (err) {
-        console.error(err);
-        alert("❌ Signature failed or canceled.");
+        alert(`✅ Vote submitted! Txn: ${txn.hash}`);
+    } catch (error) {
+        // Extract revert reason
+        if (error.data && error.data.message) {
+            alert(`❌ Error: ${error.data.message}`);
+        } else {
+            alert(`❌ Voting failed. Check console.`);
+        }
+        console.error("Vote failed:", error);
     }
 }
 
 </script>
 {% endblock %}
-
