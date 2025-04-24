@@ -1,7 +1,8 @@
 import json
 import random
 from io import BytesIO
-
+import time
+import logging
 # Third-party imports
 import pyotp
 import qrcode
@@ -27,7 +28,7 @@ from .forms import CustomUserCreationForm, LoginForm
 from .models import Candidate, CustomUser, Voter
 from .utils.contract_utils import get_vote_count, submit_vote
 
-
+logger = logging.getLogger(__name__)
 
 
 def home(request):
@@ -109,36 +110,38 @@ def login_view(request):
 
     return render(request, "voting/login.html", {"form": form})
 
-
 def verify_totp(request, candidate_id):
     user_id = request.session.get("pending_user_id")
-
     if not user_id:
         messages.error(request, "❌ Session expired. Please log in again.")
         return redirect("login")
 
     user = get_object_or_404(CustomUser, id=user_id)
-    candidate = get_object_or_404(Candidate, id=candidate_id) 
+    candidate = get_object_or_404(Candidate, id=candidate_id)
 
     if request.method == "POST":
-        otp_code = request.POST.get("otp")
+        otp_code = request.POST.get("otp", "").strip()
         totp = pyotp.TOTP(user.otp_secret)
 
-        if totp.verify(otp_code):
-            
-            user.voted_candidates.add(candidate)  
+        # Debug logging (you can remove in production)
+        now_ts = time.time()
+        logger.debug(f"[DEBUG] Server UNIX time: {now_ts} ({time.ctime(now_ts)})")
+        if totp.verify(otp_code, valid_window=1):
+            user.voted_candidates.add(candidate)
             user.save()
 
-            del request.session["pending_user_id"]  
+            # only delete after a successful vote
+            del request.session["pending_user_id"]
 
             messages.success(request, f"✅ Your vote for {candidate.name} has been recorded!")
-            return redirect("home")  
+            return redirect("home")
         else:
-            del request.session["pending_user_id"]  
-            messages.error(request, "❌ Invalid OTP. Please log in again to receive a new code.")
-            return redirect("login")  
+            # optional: allow retry by not deleting on first failure
+            messages.error(request, "❌ Invalid OTP. Please try again.")
+            return redirect("verify_totp", candidate_id=candidate_id)
 
     return render(request, "voting/verify_totp.html", {"candidate": candidate})
+
 
 
 @login_required(login_url="/login/")
@@ -175,10 +178,9 @@ def send_otp(request):
     return redirect("verify_otp")
 
 
-def verify_otp(request): 
+def verify_otp(request):
     email = request.session.get("email")
     user_id = request.session.get("user_id")
-
     if not email or not user_id:
         messages.error(request, "❌ Session expired. Please log in again.")
         return redirect("login")
@@ -186,40 +188,40 @@ def verify_otp(request):
     user = get_object_or_404(CustomUser, id=user_id)
 
     if request.method == "POST":
-        entered_gmail_otp = request.POST.get("gmail_otp")
-        entered_authenticator_otp = request.POST.get("authenticator_otp")
-        stored_gmail_otp = request.session.get("otp_code")
+        entered_gmail_otp        = request.POST.get("gmail_otp",       "").strip()
+        entered_authenticator_otp = request.POST.get("authenticator_otp","").strip()
+        stored_gmail_otp         = request.session.get("otp_code")
 
-        
+        # 1) Verify email OTP
         if entered_gmail_otp != stored_gmail_otp:
-            del request.session["otp_code"]  
-            messages.error(request, "❌ Incorrect OTP from email. A new OTP has been sent.")
-            return redirect("resend_otp")  
+            # clean up and force resend
+            del request.session["otp_code"]
+            messages.error(request, "❌ Incorrect email OTP. A new code has been sent.")
+            return redirect("resend_otp")
 
-        
+        # 2) Verify TOTP with drift window
         totp = pyotp.TOTP(user.otp_secret)
-        if not totp.verify(entered_authenticator_otp):
-            messages.error(request, "❌ Incorrect OTP from Google Authenticator. Please try again.")
+        logger.debug(f"TOTP now={totp.now()} server_time={int(time.time())}")
+        if not totp.verify(entered_authenticator_otp, valid_window=1):
+            messages.error(request, "❌ Incorrect Google Authenticator code. Please try again.")
             return redirect("verify_otp")
 
-        
+        # 3) Success!
         user.is_verified = True
         user.save()
 
-        
-        backend = settings.AUTHENTICATION_BACKENDS[0]  
+        backend = settings.AUTHENTICATION_BACKENDS[0]
         login(request, user, backend=backend)
 
-        
-        del request.session["otp_code"]
-        del request.session["user_id"]
-        del request.session["email"]
+        # cleanup all session keys
+        for key in ("otp_code", "user_id", "email"):
+            if key in request.session:
+                del request.session[key]
 
         messages.success(request, "✅ Verification successful! You are now logged in.")
         return redirect("home")
 
     return render(request, "voting/verify_otp.html", {"email": email})
-
     
 # Resend OTP
 def resend_otp(request):

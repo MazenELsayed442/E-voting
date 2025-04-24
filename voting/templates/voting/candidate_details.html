@@ -42,6 +42,20 @@
 </div>
 
 <style>
+    .voted-message {
+        display: inline-block;
+        background: #f8d7da;
+        color: #721c24;
+        padding: 10px 15px;
+        text-decoration: none;
+        border-radius: 5px;
+        border: 2px solid #f5c6cb;
+        margin-top: 10px;
+        font-weight: bold;
+        text-align: center;
+        width: 100%;
+    }
+
     .candidate-profile {
         text-align: center;
         background: #fff;
@@ -123,6 +137,41 @@
     let googleVerified = false;
     let gmailVerified = false;
     let walletConnected = false;
+    async function checkIfAlreadyVoted() {
+        if (typeof window.ethereum !== 'undefined') {
+            try {
+                const provider = new ethers.providers.Web3Provider(window.ethereum);
+                const signer = provider.getSigner();
+                const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+
+                // Get current wallet address
+                const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+                if (accounts.length > 0) {
+                    const walletAddress = accounts[0];
+
+                    // Check if address has already voted
+                    const hasVoted = await contract.hasVoted(walletAddress);
+
+                    if (hasVoted) {
+                        // Display already voted message
+                        document.getElementById("voteButton").style.display = "none";
+
+                        // Create and show already voted message
+                        const votedMessage = document.createElement("div");
+                        votedMessage.id = "alreadyVotedMessage";
+                        votedMessage.className = "voted-message";
+                        votedMessage.innerText = "You have already voted";
+
+                        // Insert the message where the vote button was
+                        document.getElementById("voteButton").parentNode.appendChild(votedMessage);
+                    }
+                }
+            } catch (error) {
+                console.error("Error checking vote status:", error);
+            }
+        }
+    }
+
     function verifyGoogleOTP() {
         let googleOtp = document.getElementById("googleOtpInput").value;
         if (googleOtp) {
@@ -192,6 +241,60 @@
         }
     }
 
+    async function updateVoteButtonStatus() {
+        // this function checks if the user has already voted and updates the button accordingly
+        if (typeof window.ethereum !== 'undefined') {
+            try {
+                const provider = new ethers.providers.Web3Provider(window.ethereum);
+                const accounts = await provider.listAccounts();
+
+                if (accounts.length > 0) {
+                    const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
+                    const hasVoted = await contract.hasVoted(accounts[0]);
+
+                    const voteButton = document.getElementById("voteButton");
+                    const votingSection = voteButton.parentNode;
+
+                    if (hasVoted) {
+                        // Disable vote button instead of hiding it
+                        voteButton.setAttribute("disabled", "true");
+                        voteButton.style.backgroundColor = "#ccc";
+                        voteButton.style.borderColor = "#999";
+                        voteButton.style.cursor = "not-allowed";
+
+                        // Check if message already exists before creating a new one
+                        let votedMessage = document.getElementById("alreadyVotedMessage");
+                        if (!votedMessage) {
+                            // Create and show already voted message
+                            votedMessage = document.createElement("div");
+                            votedMessage.id = "alreadyVotedMessage";
+                            votedMessage.className = "voted-message";
+                            votedMessage.innerText = "You have already voted";
+                            votingSection.appendChild(votedMessage);
+                        }
+                    } else {
+                        // Enable vote button if other conditions are met
+                        if (googleVerified && gmailVerified && walletConnected) {
+                            voteButton.removeAttribute("disabled");
+                            voteButton.style.backgroundColor = "";
+                            voteButton.style.borderColor = "";
+                            voteButton.style.cursor = "";
+                        }
+
+                        // Remove voted message if exists
+                        let votedMessage = document.getElementById("alreadyVotedMessage");
+                        if (votedMessage) {
+                            votedMessage.remove();
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error("Error updating vote button status:", error);
+            }
+        }
+    }
+
+
     async function connectMetaMask() {
         if (typeof window.ethereum !== 'undefined') {
             try {
@@ -199,7 +302,9 @@
                 const walletAddress = accounts[0];
                 document.getElementById("walletAddress").innerText = `Connected: ${walletAddress}`;
                 walletConnected = true;
-                checkVoteEligibility();
+
+                // Check vote status after connecting
+                updateVoteButtonStatus();
             } catch (error) {
                 console.error("MetaMask connection error:", error);
             }
@@ -208,46 +313,106 @@
         }
     }
 
+
     function checkVoteEligibility() {
         let voteButton = document.getElementById("voteButton");
+
+        // First check if user has already voted
+        updateVoteButtonStatus();
+
+        // If all other conditions are met and user hasn't voted, enable the button
         if (googleVerified && gmailVerified && walletConnected) {
-            voteButton.removeAttribute("disabled");
+            // The updateVoteButtonStatus function will handle enabling/disabling
+            // based on whether the user has already voted
         } else {
             voteButton.setAttribute("disabled", "true");
         }
     }
 
 
-    
+
     async function confirmVoteWithWallet() {
-    if (!walletConnected) {
-        alert("🦊 Connect MetaMask first!");
-        return;
-    }
-
-    try {
-        const provider = new ethers.providers.Web3Provider(window.ethereum);
-        const signer = provider.getSigner();
-        const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
-
-        // Get candidate name from Django context
-        const candidateName = "{{ candidate.name }}"; 
-
-        // Add gas limit to avoid estimation issues
-        const txn = await contract.vote(candidateName, { gasLimit: 1000000 });
-        await txn.wait();
-
-        alert(`✅ Vote submitted! Txn: ${txn.hash}`);
-    } catch (error) {
-        // Extract revert reason
-        if (error.data && error.data.message) {
-            alert(`❌ Error: ${error.data.message}`);
-        } else {
-            alert(`❌ Voting failed. Check console.`);
+        if (!walletConnected) {
+            alert("🦊 Connect MetaMask first!");
+            return;
         }
-        console.error("Vote failed:", error);
-    }
-}
 
+        try {
+            const provider = new ethers.providers.Web3Provider(window.ethereum);
+            const signer = provider.getSigner();
+            const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+
+            // Check if already voted
+            const accounts = await provider.listAccounts();
+            const hasVoted = await contract.hasVoted(accounts[0]);
+
+            if (hasVoted) {
+                alert("You have already voted!");
+                updateVoteButtonStatus();
+                return;
+            }
+
+            // Get candidate name from Django context
+            const candidateName = "{{ candidate.name }}";
+
+            // Add gas limit to avoid estimation issues
+            const txn = await contract.vote(candidateName, { gasLimit: 1000000 });
+
+            // Show pending transaction message
+            alert(`Vote submitted! Transaction pending...`);
+
+            // Wait for transaction to be mined
+            await txn.wait();
+
+            alert(`✅ Vote successfully recorded! Txn: ${txn.hash}`);
+
+            // Update the UI
+            updateVoteButtonStatus();
+
+        } catch (error) {
+            // Extract revert reason
+            if (error.data && error.data.message) {
+                alert(`❌ Error: ${error.data.message}`);
+            } else if (error.message && error.message.includes("Already voted")) {
+                alert("You have already voted!");
+                updateVoteButtonStatus();
+            } else {
+                alert(`❌ Voting failed. Check console.`);
+            }
+            console.error("Vote failed:", error);
+        }
+    }
+    document.addEventListener("DOMContentLoaded", async function () {
+        // If wallet is already connected (MetaMask remembers connections)
+        if (typeof window.ethereum !== 'undefined') {
+            const provider = new ethers.providers.Web3Provider(window.ethereum);
+            const accounts = await provider.listAccounts();
+
+            if (accounts.length > 0) {
+                const walletAddress = accounts[0];
+                document.getElementById("walletAddress").innerText = `Connected: ${walletAddress}`;
+                walletConnected = true;
+
+                // Check vote status
+                updateVoteButtonStatus();
+            }
+        }
+
+        // Listen for account changes
+        if (window.ethereum) {
+            window.ethereum.on('accountsChanged', function (accounts) {
+                if (accounts.length > 0) {
+                    const walletAddress = accounts[0];
+                    document.getElementById("walletAddress").innerText = `Connected: ${walletAddress}`;
+                    walletConnected = true;
+                    updateVoteButtonStatus();
+                } else {
+                    document.getElementById("walletAddress").innerText = "";
+                    walletConnected = false;
+                    document.getElementById("voteButton").setAttribute("disabled", "true");
+                }
+            });
+        }
+    });
 </script>
 {% endblock %}

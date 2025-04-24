@@ -117,7 +117,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = r'Africa/Cairo'
 
 USE_I18N = True
 
@@ -154,3 +154,5 @@ MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 AUTH_USER_MODEL = "voting.CustomUser"
 WEB3_PROVIDER = "http://127.0.0.1:8545"
 CONTRACT_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+
+
