@@ -138,6 +138,8 @@
     let gmailVerified = false;
     let walletConnected = false;
     async function checkIfAlreadyVoted() {
+        // This function checks if the user has already voted
+        // and updates the button status accordingly.
         if (typeof window.ethereum !== 'undefined') {
             try {
                 const provider = new ethers.providers.Web3Provider(window.ethereum);
@@ -173,6 +175,8 @@
     }
 
     function verifyGoogleOTP() {
+        // This function verifies the Google OTP entered by the user
+        // and updates the button status accordingly.
         let googleOtp = document.getElementById("googleOtpInput").value;
         if (googleOtp) {
             fetch("{% url 'verify_google_otp_ajax' %}", {
@@ -199,6 +203,7 @@
     }
 
     function sendGmailOTP() {
+        //  This function sends a Gmail OTP to the user's email address
         fetch("{% url 'send_gmail_otp_ajax' %}", {
             method: "POST",
             headers: {
@@ -216,6 +221,8 @@
     }
 
     function verifyGmailOTP() {
+        // This function verifies the Gmail OTP entered by the user
+        // and updates the button status accordingly.
         let gmailOtp = document.getElementById("gmailOtpInput").value;
         if (gmailOtp) {
             fetch("{% url 'verify_gmail_otp_ajax' %}", {
@@ -296,6 +303,7 @@
 
 
     async function connectMetaMask() {
+        // Check if MetaMask is installed and request account access
         if (typeof window.ethereum !== 'undefined') {
             try {
                 const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
@@ -315,6 +323,8 @@
 
 
     function checkVoteEligibility() {
+        // This function checks if all conditions are met for enabling the vote button
+        // and updates the button status accordingly.
         let voteButton = document.getElementById("voteButton");
 
         // First check if user has already voted
@@ -332,6 +342,7 @@
 
 
     async function confirmVoteWithWallet() {
+        // This function confirms the vote with the wallet and sends the transaction
         if (!walletConnected) {
             alert("🦊 Connect MetaMask first!");
             return;
