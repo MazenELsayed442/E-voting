@@ -280,64 +280,68 @@ CANDIDATES = {
 @verified_required
 def vote_category(request, category):
     allowed_categories = ["President", "Vice President", "Secretary"]
-
     if category not in allowed_categories:
         messages.error(request, "❌ Invalid category selected.")
         return redirect("vote_home")
 
-    candidates = CANDIDATES.get(category, [])
-
-    
-    for candidate in candidates:
-        candidate["image_url"] = settings.MEDIA_URL + candidate["image"]
+    # جلب المرشحين من قاعدة البيانات حسب الفئة
+    candidates = Candidate.objects.filter(category=category)
 
     if request.method == "POST":
-        email = request.session.get("email")
-        if not email:
-           messages.error(request, "❌ You must be logged in to vote.")
-           return redirect("login")
-
         candidate_id = request.POST.get("candidate_id")
         if not candidate_id:
             messages.error(request, "❌ Please select a candidate before voting.")
             return redirect("vote_category", category=category)
 
-        candidate_id = int(candidate_id)
-        candidate = next((c for c in candidates if c["id"] == candidate_id), None)
+        # تأكد من أن المرشح موجود وينتميت للفئة نفسها
+        candidate = get_object_or_404(Candidate, id=candidate_id, category=category)
+        candidate.votes += 1
+        candidate.save()
 
-        if not candidate:
-            messages.error(request, "❌ Invalid candidate selected.")
-            return redirect("vote_category", category=category)
-
-        candidate["votes"] += 1
-        messages.success(request, f"✅ Voting successful for {candidate['name']}!")
+        messages.success(request, f"✅ Voting successful for {candidate.name}!")
         return redirect("vote_home")
 
-    return render(request, "voting/vote_category.html", {"category": category, "candidates": candidates})
-
+    return render(request, "voting/vote_category.html", {
+        "category": category,
+        "candidates": candidates,
+    })
  
 
+
 def get_candidate_details(request, candidate_id):
+    
     candidate = get_object_or_404(Candidate, id=candidate_id)
 
-    # Load ABI from the correct path (inside blockchain/ folder)
+    
     try:
         with open("blockchain/artifacts/contracts/Voting.sol/Voting.json", "r") as f:
-            contract_abi = json.load(f)["abi"]
+            contract_data = json.load(f)
+            contract_abi = contract_data.get("abi", [])
     except FileNotFoundError:
-        contract_abi = []  # Fallback if ABI not found
+        contract_abi = []
 
+    
+    contract_address = getattr(settings, "VOTING_CONTRACT_ADDRESS", None)
+    if not contract_address:
+        
+        raise RuntimeError("VOTING_CONTRACT_ADDRESS is not set in settings.py")
+
+    
     context = {
         "candidate": candidate,
-        "contract_abi": json.dumps(contract_abi),  # Convert to string
-        "contract_address": "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+        "contract_abi": json.dumps(contract_abi),
+        "contract_address": contract_address,
+        
+        
     }
 
-    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+    
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
         return JsonResponse({
-            'name': candidate.name,
-            'image_url': candidate.image.url,
-            'description': candidate.description,
+            "name": candidate.name,
+            "image_url": candidate.image.url,
+            "description": candidate.description,
+            "category": candidate.category,
         })
 
     return render(request, "voting/candidate_details.html", context)

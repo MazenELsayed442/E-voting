@@ -1,20 +1,192 @@
 {% extends 'voting/base.html' %}
-<!-- In your Django template (inside <script> tags) -->
 {% block content %}
 <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 <script>
     const CONTRACT_ADDRESS = "{{ contract_address }}";
-    const CONTRACT_ABI = JSON.parse('{{ contract_abi|escapejs }}');
+    const CONTRACT_ABI     = JSON.parse('{{ contract_abi|escapejs }}');
+    const CATEGORY         = "{{ candidate.category }}";
+
+    let googleVerified  = false;
+    let gmailVerified   = false;
+    let walletConnected = false;
+
+    async function updateVoteButtonStatus() {
+        if (typeof window.ethereum === 'undefined') return;
+        try {
+            const provider = new ethers.providers.Web3Provider(window.ethereum);
+            const accounts = await provider.listAccounts();
+            if (accounts.length === 0) return;
+
+            const contract   = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
+            const hasVoted   = await contract.hasVotedInCategory(accounts[0], CATEGORY);
+            const voteButton = document.getElementById("voteButton");
+            const parent     = voteButton.parentNode;
+
+            if (hasVoted) {
+                voteButton.setAttribute("disabled", "true");
+                voteButton.style.backgroundColor = "#ccc";
+                voteButton.style.borderColor     = "#999";
+                voteButton.style.cursor          = "not-allowed";
+
+                if (!document.getElementById("alreadyVotedMessage")) {
+                    const msg = document.createElement("div");
+                    msg.id        = "alreadyVotedMessage";
+                    msg.className = "voted-message";
+                    msg.innerText = "You have already voted in this category";
+                    parent.appendChild(msg);
+                }
+            } else {
+                if (googleVerified && gmailVerified && walletConnected) {
+                    voteButton.removeAttribute("disabled");
+                    voteButton.style.backgroundColor = "";
+                    voteButton.style.borderColor     = "";
+                    voteButton.style.cursor          = "";
+                }
+                const existing = document.getElementById("alreadyVotedMessage");
+                if (existing) existing.remove();
+            }
+        } catch (err) {
+            console.error("Error updating vote button status:", err);
+        }
+    }
+
+    function verifyGoogleOTP() {
+        const code = document.getElementById("googleOtpInput").value.trim();
+        if (!code) return alert("Please enter a Google Authenticator code!");
+        fetch("{% url 'verify_google_otp_ajax' %}", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": "{{ csrf_token }}"
+            },
+            body: JSON.stringify({ otp: code })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                googleVerified = true;
+                alert("Google OTP verified");
+                updateVoteButtonStatus();
+            } else {
+                alert("Invalid Google OTP");
+            }
+        });
+    }
+
+    function sendGmailOTP() {
+        fetch("{% url 'send_gmail_otp_ajax' %}", {
+            method: "POST",
+            headers: { "X-CSRFToken": "{{ csrf_token }}" }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                alert("OTP sent to your Gmail");
+            } else {
+                alert("Failed to send Gmail OTP");
+            }
+        });
+    }
+
+    function verifyGmailOTP() {
+        const code = document.getElementById("gmailOtpInput").value.trim();
+        if (!code) return alert("Please enter the Gmail OTP!");
+        fetch("{% url 'verify_gmail_otp_ajax' %}", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": "{{ csrf_token }}"
+            },
+            body: JSON.stringify({ otp: code })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                gmailVerified = true;
+                alert("Gmail OTP verified");
+                updateVoteButtonStatus();
+            } else {
+                alert("Invalid Gmail OTP");
+            }
+        });
+    }
+
+    async function connectMetaMask() {
+        if (!window.ethereum) {
+            return alert("Please install MetaMask to continue.");
+        }
+        try {
+            const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+            document.getElementById("walletAddress").innerText = `Connected: ${accounts[0]}`;
+            walletConnected = true;
+            updateVoteButtonStatus();
+        } catch (err) {
+            console.error("MetaMask connection error:", err);
+        }
+    }
+
+    async function confirmVoteWithWallet() {
+        if (!walletConnected) {
+            return alert("🦊 Connect MetaMask first!");
+        }
+        try {
+            const provider = new ethers.providers.Web3Provider(window.ethereum);
+            const signer   = provider.getSigner();
+            const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+            const accounts = await provider.listAccounts();
+            const already  = await contract.hasVotedInCategory(accounts[0], CATEGORY);
+
+            if (already) {
+                alert("You have already voted in this category!");
+                return updateVoteButtonStatus();
+            }
+
+            const candidateName = "{{ candidate.name }}";
+            const tx = await contract.vote(CATEGORY, candidateName, { gasLimit: 1_000_000 });
+            alert("Vote submitted, waiting for confirmation...");
+            await tx.wait();
+            alert(`✅ Vote recorded (tx hash: ${tx.hash})`);
+
+            // بدلاً من استدعاء updateVoteButtonStatus فوراً:
+            const voteButton = document.getElementById("voteButton");
+            voteButton.innerText = "Voted";
+            voteButton.setAttribute("disabled", "true");
+
+        } catch (err) {
+            const reason = err.data?.message || err.message;
+            alert(`❌ Voting failed: ${reason}`);
+            console.error("Vote error:", err);
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", async () => {
+        if (window.ethereum) {
+            const provider = new ethers.providers.Web3Provider(window.ethereum);
+            const accounts = await provider.listAccounts();
+            if (accounts.length > 0) {
+                document.getElementById("walletAddress").innerText = `Connected: ${accounts[0]}`;
+                walletConnected = true;
+            }
+            window.ethereum.on('accountsChanged', (acs) => {
+                walletConnected = acs.length > 0;
+                document.getElementById("walletAddress").innerText = walletConnected ? `Connected: ${acs[0]}` : "";
+                updateVoteButtonStatus();
+            });
+        }
+        updateVoteButtonStatus();
+    });
 </script>
+
 <div class="container">
-    <h2 class="text-center" style="font-size: 24px; font-weight: 600; color: black;">Candidate details</h2>
+    <h2 class="text-center" style="font-size: 24px; font-weight: 600; color: black;">
+        Candidate details — {{ candidate.category }}
+    </h2>
 
     <div class="candidate-profile">
         <img src="{{ candidate.image.url }}" alt="Candidate photo" class="candidate-image">
         <h3 class="candidate-name">{{ candidate.name }}</h3>
         <p class="candidate-description">{{ candidate.description }}</p>
 
-        <!-- حقول إدخال الأكواد -->
         <div class="otp-container">
             <label>Google Authentication Code</label>
             <input type="text" id="googleOtpInput" placeholder="Enter Google Auth Code">
@@ -28,15 +200,13 @@
             <button class="verify-btn" onclick="verifyGmailOTP()">Verify</button>
         </div>
 
-        <!-- زر حفظ محفظة MetaMask -->
         <button class="wallet-btn" onclick="connectMetaMask()">Connect MetaMask</button>
         <p id="walletAddress" style="margin-top: 10px; font-size: 14px; color: green;"></p>
 
-        <!-- زر التصويت -->
         <form method="POST" action="{% url 'vote_candidate' candidate.id %}">
             {% csrf_token %}
             <button type="button" id="voteButton" class="btn btn-success" disabled
-                onclick="confirmVoteWithWallet()">Vote</button>
+                    onclick="confirmVoteWithWallet()">Vote</button>
         </form>
     </div>
 </div>
@@ -55,17 +225,15 @@
         text-align: center;
         width: 100%;
     }
-
     .candidate-profile {
         text-align: center;
         background: #fff;
         padding: 20px;
         border-radius: 10px;
-        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
         max-width: 500px;
         margin: auto;
     }
-
     .candidate-image {
         width: 150px;
         height: 150px;
@@ -73,21 +241,16 @@
         object-fit: cover;
         margin-bottom: 10px;
     }
-
     .candidate-name {
         font-size: 22px;
         font-weight: bold;
         color: black;
     }
-
     .candidate-description {
         font-size: 16px;
         color: #333;
     }
-
-    .vote-btn,
-    .verify-btn,
-    .wallet-btn {
+    .vote-btn, .verify-btn, .wallet-btn {
         display: inline-block;
         background: white;
         color: black;
@@ -100,22 +263,18 @@
         font-weight: bold;
         cursor: pointer;
     }
-
     .vote-btn[disabled] {
         background: #ccc;
         border: 2px solid #999;
         cursor: not-allowed;
     }
-
     .vote-btn[disabled]:hover {
         cursor: not-allowed;
     }
-
     .otp-container {
         margin-top: 15px;
         text-align: left;
     }
-
     label {
         font-size: 14px;
         font-weight: bold;
@@ -123,7 +282,6 @@
         display: block;
         margin-top: 10px;
     }
-
     input {
         width: 100%;
         padding: 8px;
@@ -132,298 +290,4 @@
         border-radius: 5px;
     }
 </style>
-
-<script>
-    let googleVerified = false;
-    let gmailVerified = false;
-    let walletConnected = false;
-    async function checkIfAlreadyVoted() {
-        // This function checks if the user has already voted
-        // and updates the button status accordingly.
-        if (typeof window.ethereum !== 'undefined') {
-            try {
-                const provider = new ethers.providers.Web3Provider(window.ethereum);
-                const signer = provider.getSigner();
-                const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
-
-                // Get current wallet address
-                const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-                if (accounts.length > 0) {
-                    const walletAddress = accounts[0];
-
-                    // Check if address has already voted
-                    const hasVoted = await contract.hasVoted(walletAddress);
-
-                    if (hasVoted) {
-                        // Display already voted message
-                        document.getElementById("voteButton").style.display = "none";
-
-                        // Create and show already voted message
-                        const votedMessage = document.createElement("div");
-                        votedMessage.id = "alreadyVotedMessage";
-                        votedMessage.className = "voted-message";
-                        votedMessage.innerText = "You have already voted";
-
-                        // Insert the message where the vote button was
-                        document.getElementById("voteButton").parentNode.appendChild(votedMessage);
-                    }
-                }
-            } catch (error) {
-                console.error("Error checking vote status:", error);
-            }
-        }
-    }
-
-    function verifyGoogleOTP() {
-        // This function verifies the Google OTP entered by the user
-        // and updates the button status accordingly.
-        let googleOtp = document.getElementById("googleOtpInput").value;
-        if (googleOtp) {
-            fetch("{% url 'verify_google_otp_ajax' %}", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "X-CSRFToken": "{{ csrf_token }}"
-                },
-                body: JSON.stringify({ otp: googleOtp })
-            })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success) {
-                        googleVerified = true;
-                        alert("Google OTP Verified");
-                        checkVoteEligibility();
-                    } else {
-                        alert("Invalid Google OTP");
-                    }
-                });
-        } else {
-            alert("Please enter a valid Google Authenticator Code!");
-        }
-    }
-
-    function sendGmailOTP() {
-        //  This function sends a Gmail OTP to the user's email address
-        fetch("{% url 'send_gmail_otp_ajax' %}", {
-            method: "POST",
-            headers: {
-                "X-CSRFToken": "{{ csrf_token }}"
-            }
-        })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    alert("OTP sent to your Gmail");
-                } else {
-                    alert("Error sending OTP");
-                }
-            });
-    }
-
-    function verifyGmailOTP() {
-        // This function verifies the Gmail OTP entered by the user
-        // and updates the button status accordingly.
-        let gmailOtp = document.getElementById("gmailOtpInput").value;
-        if (gmailOtp) {
-            fetch("{% url 'verify_gmail_otp_ajax' %}", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "X-CSRFToken": "{{ csrf_token }}"
-                },
-                body: JSON.stringify({ otp: gmailOtp })
-            })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success) {
-                        gmailVerified = true;
-                        alert("Gmail OTP Verified");
-                        checkVoteEligibility();
-                    } else {
-                        alert("Invalid Gmail OTP");
-                    }
-                });
-        } else {
-            alert("Please enter a valid Gmail Code!");
-        }
-    }
-
-    async function updateVoteButtonStatus() {
-        // this function checks if the user has already voted and updates the button accordingly
-        if (typeof window.ethereum !== 'undefined') {
-            try {
-                const provider = new ethers.providers.Web3Provider(window.ethereum);
-                const accounts = await provider.listAccounts();
-
-                if (accounts.length > 0) {
-                    const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
-                    const hasVoted = await contract.hasVoted(accounts[0]);
-
-                    const voteButton = document.getElementById("voteButton");
-                    const votingSection = voteButton.parentNode;
-
-                    if (hasVoted) {
-                        // Disable vote button instead of hiding it
-                        voteButton.setAttribute("disabled", "true");
-                        voteButton.style.backgroundColor = "#ccc";
-                        voteButton.style.borderColor = "#999";
-                        voteButton.style.cursor = "not-allowed";
-
-                        // Check if message already exists before creating a new one
-                        let votedMessage = document.getElementById("alreadyVotedMessage");
-                        if (!votedMessage) {
-                            // Create and show already voted message
-                            votedMessage = document.createElement("div");
-                            votedMessage.id = "alreadyVotedMessage";
-                            votedMessage.className = "voted-message";
-                            votedMessage.innerText = "You have already voted";
-                            votingSection.appendChild(votedMessage);
-                        }
-                    } else {
-                        // Enable vote button if other conditions are met
-                        if (googleVerified && gmailVerified && walletConnected) {
-                            voteButton.removeAttribute("disabled");
-                            voteButton.style.backgroundColor = "";
-                            voteButton.style.borderColor = "";
-                            voteButton.style.cursor = "";
-                        }
-
-                        // Remove voted message if exists
-                        let votedMessage = document.getElementById("alreadyVotedMessage");
-                        if (votedMessage) {
-                            votedMessage.remove();
-                        }
-                    }
-                }
-            } catch (error) {
-                console.error("Error updating vote button status:", error);
-            }
-        }
-    }
-
-
-    async function connectMetaMask() {
-        // Check if MetaMask is installed and request account access
-        if (typeof window.ethereum !== 'undefined') {
-            try {
-                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-                const walletAddress = accounts[0];
-                document.getElementById("walletAddress").innerText = `Connected: ${walletAddress}`;
-                walletConnected = true;
-
-                // Check vote status after connecting
-                updateVoteButtonStatus();
-            } catch (error) {
-                console.error("MetaMask connection error:", error);
-            }
-        } else {
-            alert("MetaMask is not installed. Please install it to continue.");
-        }
-    }
-
-
-    function checkVoteEligibility() {
-        // This function checks if all conditions are met for enabling the vote button
-        // and updates the button status accordingly.
-        let voteButton = document.getElementById("voteButton");
-
-        // First check if user has already voted
-        updateVoteButtonStatus();
-
-        // If all other conditions are met and user hasn't voted, enable the button
-        if (googleVerified && gmailVerified && walletConnected) {
-            // The updateVoteButtonStatus function will handle enabling/disabling
-            // based on whether the user has already voted
-        } else {
-            voteButton.setAttribute("disabled", "true");
-        }
-    }
-
-
-
-    async function confirmVoteWithWallet() {
-        // This function confirms the vote with the wallet and sends the transaction
-        if (!walletConnected) {
-            alert("🦊 Connect MetaMask first!");
-            return;
-        }
-
-        try {
-            const provider = new ethers.providers.Web3Provider(window.ethereum);
-            const signer = provider.getSigner();
-            const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
-
-            // Check if already voted
-            const accounts = await provider.listAccounts();
-            const hasVoted = await contract.hasVoted(accounts[0]);
-
-            if (hasVoted) {
-                alert("You have already voted!");
-                updateVoteButtonStatus();
-                return;
-            }
-
-            // Get candidate name from Django context
-            const candidateName = "{{ candidate.name }}";
-
-            // Add gas limit to avoid estimation issues
-            const txn = await contract.vote(candidateName, { gasLimit: 1000000 });
-
-            // Show pending transaction message
-            alert(`Vote submitted! Transaction pending...`);
-
-            // Wait for transaction to be mined
-            await txn.wait();
-
-            alert(`✅ Vote successfully recorded! Txn: ${txn.hash}`);
-
-            // Update the UI
-            updateVoteButtonStatus();
-
-        } catch (error) {
-            // Extract revert reason
-            if (error.data && error.data.message) {
-                alert(`❌ Error: ${error.data.message}`);
-            } else if (error.message && error.message.includes("Already voted")) {
-                alert("You have already voted!");
-                updateVoteButtonStatus();
-            } else {
-                alert(`❌ Voting failed. Check console.`);
-            }
-            console.error("Vote failed:", error);
-        }
-    }
-    document.addEventListener("DOMContentLoaded", async function () {
-        // If wallet is already connected (MetaMask remembers connections)
-        if (typeof window.ethereum !== 'undefined') {
-            const provider = new ethers.providers.Web3Provider(window.ethereum);
-            const accounts = await provider.listAccounts();
-
-            if (accounts.length > 0) {
-                const walletAddress = accounts[0];
-                document.getElementById("walletAddress").innerText = `Connected: ${walletAddress}`;
-                walletConnected = true;
-
-                // Check vote status
-                updateVoteButtonStatus();
-            }
-        }
-
-        // Listen for account changes
-        if (window.ethereum) {
-            window.ethereum.on('accountsChanged', function (accounts) {
-                if (accounts.length > 0) {
-                    const walletAddress = accounts[0];
-                    document.getElementById("walletAddress").innerText = `Connected: ${walletAddress}`;
-                    walletConnected = true;
-                    updateVoteButtonStatus();
-                } else {
-                    document.getElementById("walletAddress").innerText = "";
-                    walletConnected = false;
-                    document.getElementById("voteButton").setAttribute("disabled", "true");
-                }
-            });
-        }
-    });
-</script>
 {% endblock %}

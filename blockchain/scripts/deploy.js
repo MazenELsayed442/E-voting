@@ -6,14 +6,10 @@ async function main() {
     console.log("Deploying with account:", signer.address);
 
     const Voting = await hre.ethers.getContractFactory("Voting");
-<<<<<<< HEAD
-    const candidates = ["Alice", "Bob", "ahmed", "Ahmed", "Charlie"];
-=======
-    const candidates = ["Alice", "Bob", "Charlie"];
->>>>>>> fork/main
     
+    // لاحظ هنا مفيش arguments
     console.log("Deploying Voting contract...");
-    const voting = await Voting.deploy(candidates, { gasLimit: 3000000 });
+    const voting = await Voting.deploy({ gasLimit: 3000000 });
 
     // Wait for deployment confirmation (ethers v6)
     await voting.waitForDeployment();
