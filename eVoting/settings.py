@@ -154,7 +154,7 @@ MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 AUTH_USER_MODEL = "voting.CustomUser"
 WEB3_PROVIDER = "http://127.0.0.1:8545"
 # Smart contract address alias
-VOTING_CONTRACT_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+VOTING_CONTRACT_ADDRESS = "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512"
 
 
 

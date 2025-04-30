@@ -10,45 +10,95 @@
     let gmailVerified   = false;
     let walletConnected = false;
 
-    async function updateVoteButtonStatus() {
-        if (typeof window.ethereum === 'undefined') return;
-        try {
-            const provider = new ethers.providers.Web3Provider(window.ethereum);
-            const accounts = await provider.listAccounts();
-            if (accounts.length === 0) return;
+// You NEED to get the specific Pool ID for the current voting context
+// This should likely be passed from your Django template, similar to CONTRACT_ADDRESS/ABI
+// Example: const POOL_ID = {{ pool_id_from_django_context }};
+const POOL_ID = 0;
 
-            const contract   = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
-            const hasVoted   = await contract.hasVotedInCategory(accounts[0], CATEGORY);
-            const voteButton = document.getElementById("voteButton");
-            const parent     = voteButton.parentNode;
-
-            if (hasVoted) {
-                voteButton.setAttribute("disabled", "true");
-                voteButton.style.backgroundColor = "#ccc";
-                voteButton.style.borderColor     = "#999";
-                voteButton.style.cursor          = "not-allowed";
-
-                if (!document.getElementById("alreadyVotedMessage")) {
-                    const msg = document.createElement("div");
-                    msg.id        = "alreadyVotedMessage";
-                    msg.className = "voted-message";
-                    msg.innerText = "You have already voted in this category";
-                    parent.appendChild(msg);
-                }
-            } else {
-                if (googleVerified && gmailVerified && walletConnected) {
-                    voteButton.removeAttribute("disabled");
-                    voteButton.style.backgroundColor = "";
-                    voteButton.style.borderColor     = "";
-                    voteButton.style.cursor          = "";
-                }
-                const existing = document.getElementById("alreadyVotedMessage");
-                if (existing) existing.remove();
-            }
-        } catch (err) {
-            console.error("Error updating vote button status:", err);
-        }
+async function updateVoteButtonStatus() {
+    if (typeof window.ethereum === 'undefined') return;
+    if (POOL_ID === undefined || POOL_ID === null) {
+        console.error("Pool ID is not available to check voting status.");
+        // Maybe disable the button or show an error?
+        // voteButton.setAttribute("disabled", "true");
+        return;
     }
+
+    try {
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        const accounts = await provider.listAccounts();
+        if (accounts.length === 0) {
+            // console.log("No accounts connected.");
+            // Optionally disable button if no account is connected initially
+            // voteButton.setAttribute("disabled", "true");
+            return;
+        }
+        const userAddress = accounts[0];
+
+        // Ensure CONTRACT_ADDRESS and CONTRACT_ABI are correctly set for Voting.sol
+        const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
+
+        // *** CHANGE THIS LINE ***
+        // Call the new function with the pool ID and user address
+        const hasVoted = await contract.hasVotedInPool(POOL_ID, userAddress);
+        // *** END CHANGE ***
+
+        const voteButton = document.getElementById("voteButton"); // Ensure this ID exists
+        if (!voteButton) {
+             console.error("voteButton element not found");
+             return;
+        }
+        const parent = voteButton.parentNode;
+
+
+        // --- Button enabling/disabling logic ---
+        let shouldBeEnabled = !hasVoted && googleVerified && gmailVerified && walletConnected;
+
+        if (hasVoted) {
+            // If already voted, ALWAYS disable
+            shouldBeEnabled = false;
+            // Add the "already voted" message if needed
+             if (!document.getElementById("alreadyVotedMessage") && parent) {
+                const msg = document.createElement("div");
+                msg.id = "alreadyVotedMessage";
+                msg.className = "voted-message text-danger mt-2"; // Added bootstrap classes
+                msg.innerText = "You have already voted in this pool";
+                parent.appendChild(msg);
+            }
+        } else {
+            // If not voted, remove the message
+             const existing = document.getElementById("alreadyVotedMessage");
+             if (existing) existing.remove();
+        }
+
+        // Now set the button state based on the final 'shouldBeEnabled' status
+        if (shouldBeEnabled) {
+            voteButton.removeAttribute("disabled");
+            voteButton.style.backgroundColor = ""; // Reset styles
+            voteButton.style.borderColor = "";
+            voteButton.style.cursor = "";
+        } else {
+            voteButton.setAttribute("disabled", "true");
+            voteButton.style.backgroundColor = "#ccc"; // Disabled style
+            voteButton.style.borderColor = "#999";
+            voteButton.style.cursor = "not-allowed";
+        }
+
+
+    } catch (err) {
+        console.error("Error updating vote button status:", err);
+        // Consider disabling the button or showing a generic error if the status check fails
+        const voteButton = document.getElementById("voteButton");
+         if (voteButton) {
+            // voteButton.setAttribute("disabled", "true");
+            // voteButton.innerText = "Status Error"; // Example
+         }
+    }
+}
+
+// Make sure you call updateVoteButtonStatus() when the page loads
+// and potentially when wallet connection status changes.
+// Also ensure googleVerified, gmailVerified, walletConnected variables are updated correctly.
 
     function verifyGoogleOTP() {
         const code = document.getElementById("googleOtpInput").value.trim();
@@ -134,7 +184,7 @@
             const signer   = provider.getSigner();
             const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
             const accounts = await provider.listAccounts();
-            const already  = await contract.hasVotedInCategory(accounts[0], CATEGORY);
+            const already  = await contract.hasVotedInPool(POOL_ID, accounts[0]);
 
             if (already) {
                 alert("You have already voted in this category!");
@@ -142,7 +192,9 @@
             }
 
             const candidateName = "{{ candidate.name }}";
-            const tx = await contract.vote(CATEGORY, candidateName, { gasLimit: 1_000_000 });
+            console.log("Voting for candidate:", candidateName);
+            console.log("Pool ID:", POOL_ID);
+            const tx = await contract.vote(POOL_ID, candidateName, { gasLimit: 1_000_000 });
             alert("Vote submitted, waiting for confirmation...");
             await tx.wait();
             alert(`✅ Vote recorded (tx hash: ${tx.hash})`);
