@@ -66,11 +66,12 @@
             </div>
         </div>
     </div>
-
+    {% if user.user_type != 'admin' %}
     <!-- زر المشاركة -->
     <div class="text-center mt-4">
         <a href="{% url 'vote' %}" class="btn btn-participate">Participate</a>
     </div>
+    {% endif %}
 </div>
 
 <style>

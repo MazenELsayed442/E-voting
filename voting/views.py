@@ -260,20 +260,6 @@ def vote_home(request):
     return render(request, "voting/vote_home.html", {"categories": categories})
 
 
-CANDIDATES = {
-    "President": [
-        {"id": 1, "name": "Ahmed", "image": "/media/ahmed.jpg", "description": "description", "votes": 0},
-        {"id": 2, "name": "Sara", "image": "/media/sara.jpg", "description": "description", "votes": 0},
-    ],
-    "Vice President": [
-        {"id": 3, "name": "Mohamed", "image": "/media/mohamed.jpg", "description": "description", "votes": 0},
-        {"id": 4, "name": "Nora", "image": "/media/nora.jpg", "description": "description", "votes": 0},
-    ],
-    "Secretary": [
-        {"id": 5, "name": "Omar", "image": "/media/omar.jpg", "description": "description", "votes": 0},
-        {"id": 6, "name": "Laila", "image": "/media/laila.jpg", "description": "description", "votes": 0},
-    ],
-}
 
 
 @login_required(login_url="/login/")

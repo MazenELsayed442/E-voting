@@ -4,8 +4,8 @@ const hre = require("hardhat");
 async function main() {
   // --- Configuration ---
   const VOTING_CONTRACT_ADDRESS = "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512"; // Your deployed contract address
-  const POOL_ID_TO_CHECK = 1n; // Replace with the correct pool ID if different
-  const CANDIDATE_TO_CHECK = "Omar"; // Replace with the exact candidate name if different
+  const POOL_ID_TO_CHECK = 0n; // Replace with the correct pool ID if different
+  const CANDIDATE_TO_CHECK = "Ahmed"; // Replace with the exact candidate name if different
 
   console.log(`Checking votes for candidate "${CANDIDATE_TO_CHECK}" in pool ${POOL_ID_TO_CHECK}`);
   console.log(`On contract: ${VOTING_CONTRACT_ADDRESS}`);
