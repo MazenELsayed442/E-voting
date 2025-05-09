@@ -3,6 +3,21 @@
 
 {% block content %}
 <div class="container text-center">
+    {% if is_admin %}
+    <!-- Admin-specific content -->
+    <div class="admin-welcome mb-4">
+        <div class="card">
+            <div class="card-body">
+                <h2 class="card-title">Admin Portal</h2>
+                <p class="card-text">{{ admin_message }}</p>
+                <a href="{% url 'admin_dashboard' %}" class="btn btn-primary">
+                    <i class="bi bi-speedometer2 me-1"></i> Go to Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <!-- Regular user content -->
     <h1 class="mb-4">Voting Results</h1>
     
     <div class="row justify-content-center">
@@ -66,11 +81,16 @@
             </div>
         </div>
     </div>
-    {% if user.user_type != 'admin' %}
+    {% if user.is_authenticated and user.user_type != 'admin' %}
     <!-- زر المشاركة -->
     <div class="text-center mt-4">
         <a href="{% url 'vote' %}" class="btn btn-participate">Participate</a>
     </div>
+    {% elif not user.is_authenticated %}
+    <div class="text-center mt-4">
+        <a href="{% url 'login' %}" class="btn btn-participate">Login to Participate</a>
+    </div>
+    {% endif %}
     {% endif %}
 </div>
 
@@ -120,6 +140,20 @@
         transform: scale(1.05);
     }
 	
+    .admin-welcome {
+        max-width: 800px;
+        margin: 0 auto;
+    }
+    
+    .admin-welcome .card {
+        border: none;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        transition: transform 0.3s ease;
+    }
+    
+    .admin-welcome .card:hover {
+        transform: translateY(-5px);
+    }
 </style>
 
 <script>
@@ -147,6 +181,7 @@
         updateCountdown();
     }
 
+    {% if not is_admin %}
     let voteEndTime1 = new Date().getTime() + (3 * 24 * 60 * 60 * 1000);
     let voteEndTime2 = new Date().getTime() + (2 * 24 * 60 * 60 * 1000);
     let voteEndTime3 = new Date().getTime() + (4 * 24 * 60 * 60 * 1000);
@@ -154,6 +189,7 @@
     startCountdown("timer1", voteEndTime1);
     startCountdown("timer2", voteEndTime2);
     startCountdown("timer3", voteEndTime3);
+    {% endif %}
 </script>
 
 {% endblock %}

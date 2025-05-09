@@ -1,0 +1,173 @@
+{% extends 'voting/admin_base.html' %}
+{% load static %}
+{% load vote_filters %}
+
+{% block admin_title %}Pool Details: {{ pool.category }}{% endblock %}
+
+{% block admin_content %}
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Pool Details</h5>
+        <div class="actions">
+            <a href="{% url 'admin_dashboard' %}" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-arrow-left"></i> Back to Dashboard
+            </a>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <table class="table">
+                    <tr>
+                        <th>Category:</th>
+                        <td>{{ pool.category }}</td>
+                    </tr>
+                    <tr>
+                        <th>Status:</th>
+                        <td>
+                            <span class="badge bg-success">Active</span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Start Date:</th>
+                        <td>{{ pool.start_time }}</td>
+                    </tr>
+                    <tr>
+                        <th>End Date:</th>
+                        <td>{{ pool.end_time }}</td>
+                    </tr>
+                    <tr>
+                        <th>Total Votes:</th>
+                        <td>{{ pool.votes }}</td>
+                    </tr>
+                </table>
+            </div>
+            <div class="col-md-6">
+                <div class="pool-visualization">
+                    <canvas id="voteChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">Candidate Results</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Votes</th>
+                        <th>Percentage</th>
+                        <th>Distribution</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for candidate in pool.candidates %}
+                    <tr>
+                        <td>{{ candidate.name }}</td>
+                        <td>{{ candidate.votes }}</td>
+                        <td>
+                            {% if pool.votes > 0 %}
+                                {{ candidate.votes|floatformat:2|multiply:100|divide:pool.votes }}%
+                            {% else %}
+                                0%
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="progress">
+                                {% if pool.votes > 0 %}
+                                    <div class="progress-bar bg-primary" role="progressbar" 
+                                         style="width: {{ candidate.votes|multiply:100|divide:pool.votes }}%"></div>
+                                {% else %}
+                                    <div class="progress-bar bg-primary" role="progressbar" style="width: 0%"></div>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="text-center">No candidate data available</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Prepare data for the chart
+        var candidates = [
+            {% for candidate in pool.candidates %}
+                "{{ candidate.name }}",
+            {% endfor %}
+        ];
+        
+        var votes = [
+            {% for candidate in pool.candidates %}
+                {{ candidate.votes }},
+            {% endfor %}
+        ];
+        
+        // Generate random colors for the chart
+        function generateColors(count) {
+            var colors = [];
+            for (var i = 0; i < count; i++) {
+                colors.push(`hsl(${i * (360 / count)}, 70%, 60%)`);
+            }
+            return colors;
+        }
+        
+        var ctx = document.getElementById('voteChart').getContext('2d');
+        var myChart = new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: candidates,
+                datasets: [{
+                    data: votes,
+                    backgroundColor: generateColors(candidates.length),
+                    borderColor: 'white',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                    },
+                    title: {
+                        display: true,
+                        text: 'Vote Distribution'
+                    }
+                }
+            }
+        });
+    });
+</script>
+
+<style>
+    .progress {
+        height: 20px;
+    }
+    .pool-visualization {
+        max-width: 100%;
+        height: 250px;
+    }
+</style>
+
+<!-- Custom filter to multiply and divide for percentage calculations -->
+<script>
+    // Register Django template filters for percentage calculations
+    // This is just a placeholder as Django template filters can't be added via JavaScript
+    // In a real implementation, these would be defined in a custom template tag
+</script>
+
+{% endblock %} 

@@ -62,28 +62,37 @@
         <div class="container">
             <h1>Welcome to The Voting System</h1>
             <nav class="nav justify-content-center">
-                {% if user.user_type == 'admin' %}
-                <a class="nav-link" href="{% url 'admin_dashboard' %}">
-                    <i class="bi bi-speedometer2"></i> Admin Dashboard
-                </a>
-                {% endif %}
-
-
                 <a class="nav-link" href="{% url 'home' %}">Main Menu</a>
+                
                 {% if user.is_authenticated %}
-                {% if user.user_type != 'admin' %}
-                <a class="nav-link" href="{% url 'vote' %}">Vote</a>
-                {% endif %}
-                <a class="nav-link" href="{% url 'logout' %}">Sign out</a>
+                    {% if user.user_type == 'admin' %}
+                    <a class="nav-link" href="{% url 'admin_dashboard' %}">
+                        <i class="bi bi-speedometer2"></i> Admin Dashboard
+                    </a>
+                    {% else %}
+                    <a class="nav-link" href="{% url 'vote' %}">Vote</a>
+                    {% endif %}
+                    
+                    <a class="nav-link" href="{% url 'logout' %}">Sign out</a>
                 {% else %}
-                <a class="nav-link" href="{% url 'login' %}">Login</a>
-                <a class="nav-link" href="{% url 'register' %}">Register</a>
+                    <a class="nav-link" href="{% url 'login' %}">Login</a>
+                    <a class="nav-link" href="{% url 'register' %}">Register</a>
                 {% endif %}
             </nav>
         </div>
     </header>
 
     <main class="container mt-4">
+        {% if messages %}
+        <div class="messages mb-4">
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        
         {% block content %}{% endblock %}
     </main>
 

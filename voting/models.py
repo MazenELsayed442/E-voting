@@ -57,15 +57,24 @@ class CustomUser(AbstractUser):
         default=False,
         help_text='Designates whether the user has completed the initial OTP verification.'
     )
+    
     # Assuming ManyToMany based on previous context - add if needed
-    # voted_candidates = models.ManyToManyField(
-    #     'Candidate',
-    #     blank=True,
-    #     related_name='voters',
-    #     help_text='Candidates this user has already voted for.'
-    # )
-
-    # --- NEW FIELD FOR USER CATEGORIZATION ---
+    voted_candidates = models.ManyToManyField(
+        'Candidate',
+        blank=True,
+        related_name='voters',
+        help_text='Candidates this user has already voted for.'
+    )
+    
+    # Add wallet address field for blockchain integration
+    wallet_address = models.CharField(
+        max_length=42,  # Ethereum addresses are 42 characters (0x + 40 hex chars)
+        blank=True,
+        null=True,
+        help_text='Ethereum wallet address for blockchain integration.'
+    )
+    
+    # --- USER TYPE FIELD ---
     USER_TYPE_CHOICES = (
         ('voter', 'Voter'),           # Standard user who can vote
         ('admin', 'Administrator'),    # User with special admin views/permissions

@@ -1,0 +1,102 @@
+{% extends 'voting/admin_base.html' %}
+{% load static %}
+
+{% block admin_title %}Cancel Voting Pool{% endblock %}
+
+{% block admin_content %}
+<div class="alert alert-warning mb-4">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+    <strong>Important:</strong> Canceling a voting pool is a serious action that requires approval from other admins.
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Active Voting Pools</h5>
+    </div>
+    <div class="card-body">
+        {% if active_pools %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Category</th>
+                        <th>Start Date</th>
+                        <th>End Date</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pool in active_pools %}
+                    <tr>
+                        <td>{{ pool.category }}</td>
+                        <td>{{ pool.start_time }}</td>
+                        <td>{{ pool.end_time }}</td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-danger" 
+                                    data-bs-toggle="modal" 
+                                    data-bs-target="#cancelPoolModal" 
+                                    data-pool-id="{{ pool.id }}"
+                                    data-pool-name="{{ pool.category }}">
+                                <i class="bi bi-x-circle me-1"></i> Cancel
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted">No active voting pools found.</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Cancel Pool Modal -->
+<div class="modal fade" id="cancelPoolModal" tabindex="-1" aria-labelledby="cancelPoolModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="cancelPoolModalLabel">Confirm Cancellation</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{% url 'admin_submit_cancel_request' %}" method="post">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <input type="hidden" id="poolId" name="pool_id" value="">
+                    
+                    <div class="mb-3">
+                        <p class="fw-bold">Are you sure you want to request cancellation of <span id="poolName" class="fw-bold text-danger"></span>?</p>
+                        <p>This action requires approval from other admins before taking effect.</p>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="reasonTextarea" class="form-label">Reason for Cancellation</label>
+                        <textarea class="form-control" id="reasonTextarea" name="reason" rows="3" required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-danger">Submit Cancellation Request</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Set the pool ID and name in the modal when it's opened
+        const cancelPoolModal = document.getElementById('cancelPoolModal');
+        if (cancelPoolModal) {
+            cancelPoolModal.addEventListener('show.bs.modal', function(event) {
+                const button = event.relatedTarget;
+                const poolId = button.getAttribute('data-pool-id');
+                const poolName = button.getAttribute('data-pool-name');
+                
+                document.getElementById('poolId').value = poolId;
+                document.getElementById('poolName').textContent = poolName;
+            });
+        }
+    });
+</script>
+{% endblock %} 

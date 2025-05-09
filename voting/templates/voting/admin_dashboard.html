@@ -4,6 +4,56 @@
 {% block admin_title %}Admin Dashboard{% endblock %}
 
 {% block admin_content %}
+<!-- Blockchain Connection Status -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Blockchain Connection Status</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-4">
+                <div class="mb-2"><strong>Node Status:</strong></div>
+                <div>
+                    {% if "Connected" in node_status %}
+                    <span class="badge bg-success">{{ node_status }}</span>
+                    {% else %}
+                    <span class="badge bg-danger">{{ node_status }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="mb-2"><strong>Chain ID:</strong></div>
+                <div>
+                    {% if chain_id %}
+                    <span class="badge bg-info">{{ chain_id }}</span>
+                    {% else %}
+                    <span class="badge bg-secondary">Unknown</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="mb-2"><strong>Contracts:</strong></div>
+                <div class="contract-info">
+                    <div><small><strong>Voting:</strong></small></div>
+                    {% if voting_contract_address %}
+                    <div><span class="code-block">{{ voting_contract_address }}</span></div>
+                    {% else %}
+                    <div><span class="badge bg-warning">Not detected</span></div>
+                    {% endif %}
+                    
+                    <div class="mt-2"><small><strong>Admin:</strong></small></div>
+                    {% if admin_contract_address %}
+                    <div><span class="code-block">{{ admin_contract_address }}</span></div>
+                    {% else %}
+                    <div><span class="badge bg-warning">Not detected</span></div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Dashboard Stats -->
 <div class="dashboard-stats">
     <div class="row">
         <div class="col-md-4">
@@ -40,7 +90,7 @@
     <div class="col-md-6">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0">Active Voting Pools</h5>
+                <h5 class="mb-0">Voting Pools</h5>
             </div>
             <div class="table-responsive">
                 <table class="table table-hover">
@@ -49,6 +99,7 @@
                             <th>Category</th>
                             <th>Start Date</th>
                             <th>End Date</th>
+                            <th>Status</th>
                             <th>Action</th>
                         </tr>
                     </thead>
@@ -59,6 +110,19 @@
                             <td>{{ pool.start_time }}</td>
                             <td>{{ pool.end_time }}</td>
                             <td>
+                                {% if pool.status == 'Active' %}
+                                <span class="badge bg-success">Active</span>
+                                {% elif pool.status == 'Pending' %}
+                                <span class="badge bg-warning">Pending</span>
+                                {% elif pool.status == 'Cancelled' %}
+                                <span class="badge bg-danger">Cancelled</span>
+                                {% elif pool.status == 'Ended' %}
+                                <span class="badge bg-secondary">Ended</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ pool.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
                                 <a href="{% url 'admin_view_pool' pool.id %}" class="btn btn-sm btn-outline-primary">
                                     View
                                 </a>
@@ -66,7 +130,7 @@
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="4" class="text-center">No active voting pools</td>
+                            <td colspan="5" class="text-center">No voting pools found</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -181,6 +245,14 @@
         padding: 2px 5px;
         border-radius: 3px;
         margin-left: 5px;
+    }
+    
+    .code-block {
+        font-family: monospace;
+        background-color: #f8f9fa;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.9rem;
     }
     
     .table th, .table td {
