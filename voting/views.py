@@ -469,4 +469,176 @@ def submit_vote_view(request):
             return JsonResponse({"error": str(e)}, status=500)
     return JsonResponse({"error": "Invalid request method"}, status=405)
 
+# Admin Views
+def admin_required(view_func):
+    """Decorator to ensure only admin users can access admin views."""
+    @login_required(login_url="/login/")
+    @verified_required
+    def _wrapped_view(request, *args, **kwargs):
+        if request.user.user_type != 'admin':
+            messages.error(request, "❌ You don't have permission to access this page.")
+            return redirect("home")
+        return view_func(request, *args, **kwargs)
+    return _wrapped_view
+
+@admin_required
+def admin_dashboard(request):
+    """Admin dashboard with overview of voting pools and admin activities."""
+    # Placeholder data - would be replaced with real data in backend implementation
+    context = {
+        'active_tab': 'dashboard',
+        'active_pools_count': 2,
+        'total_votes': 150,
+        'pending_proposals': 1,
+        'active_pools': [
+            {'id': 1, 'category': 'President', 'start_time': '2025-06-01', 'end_time': '2025-06-30'},
+            {'id': 2, 'category': 'Vice President', 'start_time': '2025-06-01', 'end_time': '2025-06-30'},
+        ],
+        'pending_requests': [
+            {'id': 1, 'type': 'Cancel Pool', 'requester': 'admin@example.com', 'created_at': '2025-05-28'},
+        ],
+        'admin_list': [
+            {'id': 1, 'username': 'Admin 1', 'email': 'admin1@example.com', 'wallet_address': '0x1234567890abcdef1234567890abcdef12345678', 'is_active': True},
+            {'id': 2, 'username': 'Admin 2', 'email': 'admin2@example.com', 'wallet_address': '0xabcdef1234567890abcdef1234567890abcdef12', 'is_active': True},
+            {'id': 3, 'username': 'Admin 3', 'email': 'admin3@example.com', 'wallet_address': None, 'is_active': True},
+        ]
+    }
+    return render(request, "voting/admin_dashboard.html", context)
+
+@admin_required
+def admin_create_pool(request):
+    """Form to create a new voting pool."""
+    context = {
+        'active_tab': 'create_pool',
+    }
+    return render(request, "voting/admin_create_pool.html", context)
+
+@admin_required
+def admin_cancel_pool(request):
+    """Interface to request cancellation of a voting pool."""
+    # Placeholder data
+    context = {
+        'active_tab': 'cancel_pool',
+        'active_pools': [
+            {'id': 1, 'category': 'President', 'start_time': '2025-06-01', 'end_time': '2025-06-30'},
+            {'id': 2, 'category': 'Vice President', 'start_time': '2025-06-01', 'end_time': '2025-06-30'},
+        ]
+    }
+    return render(request, "voting/admin_cancel_pool.html", context)
+
+@admin_required
+def admin_replace_admin(request):
+    """Interface to request admin replacement."""
+    # Placeholder data
+    context = {
+        'active_tab': 'replace_admin',
+        'admins': [
+            {'id': 1, 'username': 'Admin 1', 'email': 'admin1@example.com', 'wallet_address': '0x1234567890abcdef1234567890abcdef12345678'},
+            {'id': 2, 'username': 'Admin 2', 'email': 'admin2@example.com', 'wallet_address': '0xabcdef1234567890abcdef1234567890abcdef12'},
+        ],
+        'candidates': [
+            {'id': 1, 'username': 'User 1', 'email': 'user1@example.com'},
+            {'id': 2, 'username': 'User 2', 'email': 'user2@example.com'},
+        ]
+    }
+    return render(request, "voting/admin_replace_admin.html", context)
+
+@admin_required
+def admin_proposals(request):
+    """Page to review and approve/reject proposals."""
+    # Placeholder data
+    context = {
+        'active_tab': 'proposals',
+        'proposals': [
+            {
+                'id': 1, 
+                'type': 'Cancel Pool', 
+                'requester': 'admin@example.com',
+                'created_at': '2025-05-28',
+                'details': 'Request to cancel President voting pool due to technical issues.'
+            },
+        ]
+    }
+    return render(request, "voting/admin_proposals.html", context)
+
+@admin_required
+def wallet_connect(request):
+    """Page to connect blockchain wallet."""
+    context = {
+        'active_tab': 'wallet',
+    }
+    return render(request, "voting/wallet_connect.html", context)
+
+@admin_required
+def admin_view_pool(request, pool_id):
+    """View details of a specific voting pool."""
+    # Placeholder data
+    pool = {
+        'id': pool_id,
+        'category': 'President',
+        'start_time': '2025-06-01',
+        'end_time': '2025-06-30',
+        'candidates': [
+            {'id': 1, 'name': 'Candidate 1', 'votes': 50},
+            {'id': 2, 'name': 'Candidate 2', 'votes': 30},
+            {'id': 3, 'name': 'Candidate 3', 'votes': 70},
+        ]
+    }
+    context = {
+        'active_tab': 'dashboard',
+        'pool': pool
+    }
+    return render(request, "voting/admin_view_pool.html", context)
+
+@admin_required
+def admin_view_proposal(request, proposal_id):
+    """View details of a specific proposal."""
+    # Placeholder data
+    proposal = {
+        'id': proposal_id,
+        'type': 'Cancel Pool',
+        'requester': 'admin@example.com',
+        'created_at': '2025-05-28',
+        'details': 'Request to cancel President voting pool due to technical issues.',
+        'status': 'Pending'
+    }
+    context = {
+        'active_tab': 'proposals',
+        'proposal': proposal
+    }
+    return render(request, "voting/admin_view_proposal.html", context)
+
+# Admin API endpoints (These would be AJAX endpoints in a real implementation)
+@admin_required
+def admin_submit_cancel_request(request):
+    """API endpoint to submit a cancel request."""
+    if request.method == 'POST':
+        # Process the cancel request
+        messages.success(request, "✅ Cancel request submitted successfully.")
+    return redirect('admin_cancel_pool')
+
+@admin_required
+def admin_submit_replace_request(request):
+    """API endpoint to submit an admin replacement request."""
+    if request.method == 'POST':
+        # Process the replacement request
+        messages.success(request, "✅ Replacement request submitted successfully.")
+    return redirect('admin_replace_admin')
+
+@admin_required
+def admin_approve_proposal(request):
+    """API endpoint to approve a proposal."""
+    if request.method == 'POST':
+        # Process the approval
+        messages.success(request, "✅ Proposal approved successfully.")
+    return redirect('admin_proposals')
+
+@admin_required
+def admin_reject_proposal(request):
+    """API endpoint to reject a proposal."""
+    if request.method == 'POST':
+        # Process the rejection
+        messages.success(request, "✅ Proposal rejected successfully.")
+    return redirect('admin_proposals')
+
 

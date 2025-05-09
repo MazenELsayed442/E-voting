@@ -1,0 +1,138 @@
+{% extends 'voting/admin_base.html' %}
+{% load static %}
+
+{% block admin_title %}Create Voting Pool{% endblock %}
+
+{% block admin_content %}
+<form action="" method="post" class="needs-validation" novalidate>
+    {% csrf_token %}
+    
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="mb-3">
+                <label for="category" class="form-label">Category</label>
+                <input type="text" class="form-control" id="category" name="category" required>
+                <div class="invalid-feedback">
+                    Please provide a category name.
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label for="start_date" class="form-label">Start Date</label>
+                <input type="date" class="form-control" id="start_date" name="start_date" required>
+                <div class="invalid-feedback">
+                    Please select a start date.
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label for="end_date" class="form-label">End Date</label>
+                <input type="date" class="form-control" id="end_date" name="end_date" required>
+                <div class="invalid-feedback">
+                    Please select an end date.
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="mb-3">
+                <label for="description" class="form-label">Description</label>
+                <textarea class="form-control" id="description" name="description" rows="5" required></textarea>
+                <div class="invalid-feedback">
+                    Please provide a description.
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label for="min_admins" class="form-label">Minimum Admins Required</label>
+                <input type="number" class="form-control" id="min_admins" name="min_admins" min="1" value="3" required>
+                <div class="invalid-feedback">
+                    Please specify minimum admins required.
+                </div>
+                <small class="text-muted">Minimum number of admins required to approve requests.</small>
+            </div>
+        </div>
+    </div>
+    
+    <h4 class="mb-3">Add Candidates</h4>
+    <div id="candidates-container">
+        <div class="row candidate-row mb-3">
+            <div class="col-md-5">
+                <input type="text" class="form-control" name="candidate_name[]" placeholder="Candidate Name" required>
+            </div>
+            <div class="col-md-5">
+                <input type="text" class="form-control" name="candidate_description[]" placeholder="Brief Description" required>
+            </div>
+            <div class="col-md-2">
+                <button type="button" class="btn btn-outline-danger remove-candidate">Remove</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="mb-4">
+        <button type="button" id="add-candidate" class="btn btn-outline-secondary">
+            <i class="bi bi-plus-circle"></i> Add Another Candidate
+        </button>
+    </div>
+    
+    <div class="d-flex justify-content-between">
+        <button type="button" class="btn btn-outline-secondary" onclick="window.location.href='{% url 'admin_dashboard' %}'">
+            <i class="bi bi-arrow-left"></i> Back to Dashboard
+        </button>
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-circle"></i> Create Voting Pool
+        </button>
+    </div>
+</form>
+
+<script>
+    // Add form validation
+    (function() {
+        'use strict';
+        window.addEventListener('load', function() {
+            var forms = document.getElementsByClassName('needs-validation');
+            var validation = Array.prototype.filter.call(forms, function(form) {
+                form.addEventListener('submit', function(event) {
+                    if (form.checkValidity() === false) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    }
+                    form.classList.add('was-validated');
+                }, false);
+            });
+        }, false);
+    })();
+    
+    // Add/remove candidate functionality
+    document.getElementById('add-candidate').addEventListener('click', function() {
+        var container = document.getElementById('candidates-container');
+        var newRow = document.createElement('div');
+        newRow.className = 'row candidate-row mb-3';
+        newRow.innerHTML = `
+            <div class="col-md-5">
+                <input type="text" class="form-control" name="candidate_name[]" placeholder="Candidate Name" required>
+            </div>
+            <div class="col-md-5">
+                <input type="text" class="form-control" name="candidate_description[]" placeholder="Brief Description" required>
+            </div>
+            <div class="col-md-2">
+                <button type="button" class="btn btn-outline-danger remove-candidate">Remove</button>
+            </div>
+        `;
+        container.appendChild(newRow);
+        
+        // Add event listener to the new remove button
+        newRow.querySelector('.remove-candidate').addEventListener('click', function() {
+            container.removeChild(newRow);
+        });
+    });
+    
+    // Add event listener to existing remove buttons
+    document.querySelectorAll('.remove-candidate').forEach(function(button) {
+        button.addEventListener('click', function() {
+            var row = this.closest('.candidate-row');
+            row.parentNode.removeChild(row);
+        });
+    });
+</script>
+{% endblock %} 

@@ -1,0 +1,190 @@
+{% extends 'voting/admin_base.html' %}
+{% load static %}
+
+{% block admin_title %}Admin Dashboard{% endblock %}
+
+{% block admin_content %}
+<div class="dashboard-stats">
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card stat-card bg-primary text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Active Pools</h5>
+                    <h2 class="stat-number">{{ active_pools_count }}</h2>
+                    <p class="card-text">Current active voting pools</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card stat-card bg-success text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Total Votes</h5>
+                    <h2 class="stat-number">{{ total_votes }}</h2>
+                    <p class="card-text">Votes cast across all pools</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card stat-card bg-info text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Pending Proposals</h5>
+                    <h2 class="stat-number">{{ pending_proposals }}</h2>
+                    <p class="card-text">Awaiting admin approval</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Active Voting Pools</h5>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Category</th>
+                            <th>Start Date</th>
+                            <th>End Date</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for pool in active_pools %}
+                        <tr>
+                            <td>{{ pool.category }}</td>
+                            <td>{{ pool.start_time }}</td>
+                            <td>{{ pool.end_time }}</td>
+                            <td>
+                                <a href="{% url 'admin_view_pool' pool.id %}" class="btn btn-sm btn-outline-primary">
+                                    View
+                                </a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center">No active voting pools</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Pending Requests</h5>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>Requester</th>
+                            <th>Date</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for request in pending_requests %}
+                        <tr>
+                            <td>{{ request.type }}</td>
+                            <td>{{ request.requester }}</td>
+                            <td>{{ request.created_at }}</td>
+                            <td>
+                                <a href="{% url 'admin_view_proposal' request.id %}" class="btn btn-sm btn-outline-primary">
+                                    Review
+                                </a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center">No pending requests</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Admin List</h5>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Email</th>
+                            <th>Wallet Address</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for admin in admin_list %}
+                        <tr>
+                            <td>{{ admin.username }}</td>
+                            <td>{{ admin.email }}</td>
+                            <td>
+                                {% if admin.wallet_address %}
+                                <span class="badge bg-success">Connected</span>
+                                <span class="wallet-address">{{ admin.wallet_address|truncatechars:12 }}</span>
+                                {% else %}
+                                <span class="badge bg-warning">Not connected</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if admin.is_active %}
+                                <span class="badge bg-success">Active</span>
+                                {% else %}
+                                <span class="badge bg-danger">Inactive</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center">No admins found</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .stat-card {
+        border-radius: 10px;
+        margin-bottom: 15px;
+    }
+    
+    .stat-number {
+        font-size: 3rem;
+        font-weight: bold;
+        margin: 10px 0;
+    }
+    
+    .wallet-address {
+        font-family: monospace;
+        background-color: #f8f9fa;
+        padding: 2px 5px;
+        border-radius: 3px;
+        margin-left: 5px;
+    }
+    
+    .table th, .table td {
+        vertical-align: middle;
+    }
+</style>
+{% endblock %} 
