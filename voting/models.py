@@ -5,6 +5,8 @@ from django.core.files.base import ContentFile
 from django.db import models
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 
+
+
 # Custom User Manager
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, username, password=None, **extra_fields):
@@ -21,38 +23,141 @@ class CustomUserManager(BaseUserManager):
         extra_fields.setdefault("is_superuser", True)
         return self.create_user(email, username, password, **extra_fields)
 
+# models.py (With user_type field added)
+
+
+
+# Make sure Candidate model is defined above or imported if needed
+# class Candidate(models.Model): ...
+
 class CustomUser(AbstractUser):
-    email = models.EmailField(unique=True)
-    otp_secret = models.CharField(max_length=16, blank=True, null=True)
-    qr_code = models.ImageField(upload_to="qr_codes/", blank=True, null=True)
-    is_verified = models.BooleanField(default=False) 
+    """
+    Custom user model using email as the username field,
+    with OTP verification, QR code generation, and user type differentiation.
+    """
+    # --- Existing Fields ---
+    email = models.EmailField(
+        unique=True,
+        help_text='Required. Unique email address for login and communication.'
+    )
+    # Increased length for standard base32 secret compatibility
+    otp_secret = models.CharField(
+        max_length=32,
+        blank=True,
+        null=True,
+        help_text='Secret key for TOTP generation (auto-generated if blank).'
+    )
+    qr_code = models.ImageField(
+        upload_to="qr_codes/",
+        blank=True,
+        null=True,
+        help_text='QR code image for TOTP provisioning (auto-generated if blank).'
+    )
+    is_verified = models.BooleanField(
+        default=False,
+        help_text='Designates whether the user has completed the initial OTP verification.'
+    )
+    
+    # Assuming ManyToMany based on previous context - add if needed
+    voted_candidates = models.ManyToManyField(
+        'Candidate',
+        blank=True,
+        related_name='voters',
+        help_text='Candidates this user has already voted for.'
+    )
+    
+    # Add wallet address field for blockchain integration
+    wallet_address = models.CharField(
+        max_length=42,  # Ethereum addresses are 42 characters (0x + 40 hex chars)
+        blank=True,
+        null=True,
+        help_text='Ethereum wallet address for blockchain integration.'
+    )
+    
+    # --- USER TYPE FIELD ---
+    USER_TYPE_CHOICES = (
+        ('voter', 'Voter'),           # Standard user who can vote
+        ('admin', 'Administrator'),    # User with special admin views/permissions
+        # Add more roles as needed (e.g., 'staff', 'auditor')
+    )
+    user_type = models.CharField(
+        max_length=10,
+        choices=USER_TYPE_CHOICES,
+        default='voter', # Default new users to the 'voter' type
+        help_text='Designates the role or type of the user.'
+    )
+    # --- END NEW FIELD ---
 
+    # --- Existing Configuration ---
     USERNAME_FIELD = "email"
-    REQUIRED_FIELDS = ["username"]
+    REQUIRED_FIELDS = ["username"] # Keep 'username' required if you still use it elsewhere, otherwise remove
 
+    # --- Existing Methods ---
     def save(self, *args, **kwargs):
+        """
+        Overrides save to auto-generate OTP secret and QR code if they don't exist.
+        """
+        # Generate OTP secret only if it's not already set
         if not self.otp_secret:
-            self.otp_secret = pyotp.random_base32()
-        
-        super().save(*args, **kwargs)  # حفظ المستخدم أولًا للحصول على user.id
+            self.otp_secret = pyotp.random_base32(length=32) # Use standard length
 
-        if not self.qr_code:
-            qr = qrcode.make(self.get_totp_uri())
-            buffer = BytesIO()
-            qr.save(buffer, format="PNG")
-            self.qr_code.save(f"{self.username}_qrcode.png", ContentFile(buffer.getvalue()), save=False)
-            
-            super().save(update_fields=["qr_code"])  # تحديث qr_code فقط بدون حفظ كل الحقول
+        # Determine if this is a new user or an update
+        is_new = self._state.adding
+
+        # Save the user instance first (especially needed for new users to get an ID)
+        # If updating, don't save qr_code yet if we need to generate it
+        update_fields = kwargs.get('update_fields')
+        if update_fields and 'qr_code' in update_fields:
+            # Temporarily remove qr_code from update_fields if we need to generate it
+             kwargs['update_fields'] = [f for f in update_fields if f != 'qr_code']
+
+        super().save(*args, **kwargs) # Save user data (excluding QR code if generating)
+
+        # Generate QR code only if it doesn't exist and we have an otp_secret
+        # Use self.pk to ensure the user has been saved and has an ID
+        if not self.qr_code and self.otp_secret and self.pk:
+            try:
+                # Generate QR code URI
+                totp_uri = self.get_totp_uri()
+                qr_image = qrcode.make(totp_uri)
+                buffer = BytesIO()
+                qr_image.save(buffer, format="PNG")
+                # Use self.pk for a unique filename
+                file_name = f"user_{self.pk}_qrcode.png"
+                # Save the QR code image file to the qr_code field
+                # save=False prevents recursion by calling save() again immediately
+                self.qr_code.save(file_name, ContentFile(buffer.getvalue()), save=False)
+
+                # Now, explicitly save *only* the qr_code field to the database
+                # Use super().save() to avoid triggering this override again
+                super().save(update_fields=["qr_code"])
+            except Exception as e:
+                # Handle potential errors during QR code generation/saving
+                # Log the error or handle it appropriately
+                print(f"Error generating/saving QR code for user {self.pk}: {e}")
+
 
     def get_totp_uri(self):
+        """Generates the provisioning URI for TOTP apps."""
+        # Ensure email and issuer name are properly encoded if needed,
+        # but typically safe characters are used here.
         return f"otpauth://totp/eVoting:{self.email}?secret={self.otp_secret}&issuer=eVoting"
 
     def verify_otp(self, otp_code):
+        """Verifies a given OTP code against the user's secret."""
+        if not self.otp_secret:
+            return False # Cannot verify if secret doesn't exist
         totp = pyotp.TOTP(self.otp_secret)
-        return totp.verify(otp_code)
+        # Use verify with valid_window for more tolerance
+        return totp.verify(otp_code, valid_window=1)
 
     def __str__(self):
-        return self.username
+        """String representation of the user."""
+        # Using email as it's the primary identifier now
+        return self.email
+
+# Remember to define or import Candidate model if using voted_candidates field
+# class Candidate(models.Model): ...
 
 # Candidate Model
 class Candidate(models.Model):

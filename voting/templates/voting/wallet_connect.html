@@ -1,0 +1,206 @@
+{% extends 'voting/admin_base.html' %}
+{% load static %}
+
+{% block admin_title %}Connect Wallet{% endblock %}
+
+{% block admin_content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-body">
+                <h3 class="card-title text-center mb-4">Blockchain Wallet Connection</h3>
+                
+                <div class="wallet-status mb-4">
+                    {% if user.wallet_address %}
+                    <div class="alert alert-success">
+                        <i class="bi bi-check-circle-fill me-2"></i> 
+                        Your wallet is connected
+                        <div class="wallet-address mt-2">
+                            <span class="wallet-label">Address:</span>
+                            <span class="wallet-value">{{ user.wallet_address }}</span>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        You haven't connected a wallet yet
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <div class="wallet-actions">
+                    {% if not user.wallet_address %}
+                    <p class="text-center mb-4">
+                        To participate in blockchain voting, you need to connect your Ethereum wallet. 
+                        This will allow you to sign transactions and verify your identity on the blockchain.
+                    </p>
+                    
+                    <div class="d-grid gap-2 col-md-6 mx-auto">
+                        <button class="btn btn-primary" id="connectWalletBtn">
+                            <i class="bi bi-wallet2 me-2"></i> Connect Wallet
+                        </button>
+                    </div>
+                    {% else %}
+                    <div class="d-grid gap-2 col-md-6 mx-auto">
+                        <button class="btn btn-outline-secondary" id="disconnectWalletBtn">
+                            <i class="bi bi-wallet2 me-2"></i> Disconnect Wallet
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <div class="wallet-help mt-5">
+                    <h5 class="text-center">Need Help?</h5>
+                    <div class="accordion" id="walletHelpAccordion">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
+                                        data-bs-target="#collapse1" aria-expanded="false" aria-controls="collapse1">
+                                    What is a blockchain wallet?
+                                </button>
+                            </h2>
+                            <div id="collapse1" class="accordion-collapse collapse" data-bs-parent="#walletHelpAccordion">
+                                <div class="accordion-body">
+                                    A blockchain wallet is a digital tool that allows you to store and manage your 
+                                    cryptocurrency assets. In our voting system, it also serves as your digital signature 
+                                    to verify your identity when voting or performing admin actions.
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
+                                        data-bs-target="#collapse2" aria-expanded="false" aria-controls="collapse2">
+                                    How to install MetaMask
+                                </button>
+                            </h2>
+                            <div id="collapse2" class="accordion-collapse collapse" data-bs-parent="#walletHelpAccordion">
+                                <div class="accordion-body">
+                                    <ol>
+                                        <li>Visit <a href="https://metamask.io/download/" target="_blank">metamask.io</a></li>
+                                        <li>Select the browser extension for your browser</li>
+                                        <li>Follow the installation steps</li>
+                                        <li>Create a new wallet or import an existing one</li>
+                                        <li>Secure your wallet with a strong password</li>
+                                        <li>Save your recovery phrase in a secure location</li>
+                                    </ol>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
+                                        data-bs-target="#collapse3" aria-expanded="false" aria-controls="collapse3">
+                                    Is it secure?
+                                </button>
+                            </h2>
+                            <div id="collapse3" class="accordion-collapse collapse" data-bs-parent="#walletHelpAccordion">
+                                <div class="accordion-body">
+                                    Yes, connecting your wallet is secure. We only store your public wallet address which
+                                    is already visible on the blockchain. We never have access to your private keys or funds.
+                                    All actions requiring your signature will prompt you through MetaMask for explicit
+                                    approval before anything is signed.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .wallet-address {
+        background-color: #f8f9fa;
+        padding: 10px 15px;
+        border-radius: 5px;
+        font-family: monospace;
+        word-break: break-all;
+    }
+    
+    .wallet-label {
+        font-weight: bold;
+        color: #495057;
+        margin-right: 8px;
+    }
+    
+    .wallet-value {
+        color: #0d6efd;
+    }
+    
+    .accordion-button:not(.collapsed) {
+        background-color: #f8f9fa;
+        color: #212529;
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const connectWalletBtn = document.getElementById('connectWalletBtn');
+        const disconnectWalletBtn = document.getElementById('disconnectWalletBtn');
+        
+        if (connectWalletBtn) {
+            connectWalletBtn.addEventListener('click', async function() {
+                if (typeof window.ethereum === 'undefined') {
+                    alert('MetaMask is not installed. Please install MetaMask to connect your wallet.');
+                    return;
+                }
+                
+                try {
+                    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                    const wallet_address = accounts[0];
+                    
+                    // Save wallet address to backend
+                    const response = await fetch('{% url "save_wallet" %}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': '{{ csrf_token }}'
+                        },
+                        body: JSON.stringify({ wallet_address })
+                    });
+                    
+                    if (response.ok) {
+                        // Reload the page to show the connected wallet
+                        window.location.reload();
+                    } else {
+                        throw new Error('Failed to save wallet address');
+                    }
+                } catch (error) {
+                    console.error('Error connecting wallet:', error);
+                    alert('Failed to connect wallet: ' + error.message);
+                }
+            });
+        }
+        
+        if (disconnectWalletBtn) {
+            disconnectWalletBtn.addEventListener('click', async function() {
+                try {
+                    // Send request to clear wallet address
+                    const response = await fetch('{% url "save_wallet" %}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': '{{ csrf_token }}'
+                        },
+                        body: JSON.stringify({ wallet_address: null })
+                    });
+                    
+                    if (response.ok) {
+                        // Reload the page to show disconnected state
+                        window.location.reload();
+                    } else {
+                        throw new Error('Failed to disconnect wallet');
+                    }
+                } catch (error) {
+                    console.error('Error disconnecting wallet:', error);
+                    alert('Failed to disconnect wallet: ' + error.message);
+                }
+            });
+        }
+    });
+</script>
+{% endblock %} 

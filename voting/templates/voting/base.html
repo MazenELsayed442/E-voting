@@ -1,23 +1,25 @@
 {% load static %}
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Voting System{% endblock %}</title>
-    
+
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="{% static 'css/style.css' %}"> 
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
 
     <style>
-        html, body {
+        html,
+        body {
             height: 100%;
             margin: 0;
             display: flex;
             flex-direction: column;
             background-color: #f8f9fa;
         }
-        
+
         main {
             flex: 1;
         }
@@ -53,15 +55,24 @@
         }
     </style>
 </head>
+
 <body>
 
     <header>
         <div class="container">
-            <h1>Welcome to the Voting System</h1>
+            <h1>Welcome to The Voting System</h1>
             <nav class="nav justify-content-center">
                 <a class="nav-link" href="{% url 'home' %}">Main Menu</a>
+                
                 {% if user.is_authenticated %}
+                    {% if user.user_type == 'admin' %}
+                    <a class="nav-link" href="{% url 'admin_dashboard' %}">
+                        <i class="bi bi-speedometer2"></i> Admin Dashboard
+                    </a>
+                    {% else %}
                     <a class="nav-link" href="{% url 'vote' %}">Vote</a>
+                    {% endif %}
+                    
                     <a class="nav-link" href="{% url 'logout' %}">Sign out</a>
                 {% else %}
                     <a class="nav-link" href="{% url 'login' %}">Login</a>
@@ -72,6 +83,16 @@
     </header>
 
     <main class="container mt-4">
+        {% if messages %}
+        <div class="messages mb-4">
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        
         {% block content %}{% endblock %}
     </main>
 
@@ -80,5 +101,8 @@
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Include Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
 </body>
+
 </html>

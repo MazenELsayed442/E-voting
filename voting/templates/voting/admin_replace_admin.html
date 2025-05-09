@@ -1,0 +1,237 @@
+{% extends 'voting/admin_base.html' %}
+{% load static %}
+
+{% block admin_title %}Replace Admin{% endblock %}
+
+{% block admin_content %}
+<div class="alert alert-info mb-4">
+    <i class="bi bi-info-circle-fill me-2"></i>
+    <strong>Note:</strong> Replacing an admin requires approval from other admins before taking effect.
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Current Admins</h5>
+            </div>
+            <div class="card-body">
+                {% if admins %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Email</th>
+                                <th>Wallet Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for admin in admins %}
+                            <tr>
+                                <td>{{ admin.username }}</td>
+                                <td>{{ admin.email }}</td>
+                                <td>
+                                    {% if admin.wallet_address %}
+                                    <span class="badge bg-success">Connected</span>
+                                    {% else %}
+                                    <span class="badge bg-warning">Not connected</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-danger select-admin"
+                                            data-admin-id="{{ admin.id }}"
+                                            data-admin-name="{{ admin.username }}">
+                                        Replace
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">No admins found</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Potential Replacements</h5>
+            </div>
+            <div class="card-body">
+                {% if candidates %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Email</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for candidate in candidates %}
+                            <tr>
+                                <td>{{ candidate.username }}</td>
+                                <td>{{ candidate.email }}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary select-candidate"
+                                            data-candidate-id="{{ candidate.id }}"
+                                            data-candidate-name="{{ candidate.username }}">
+                                        Select
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">No potential candidates found</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Replacement Form (Initially Hidden) -->
+<div class="card mt-4 d-none" id="replacementForm">
+    <div class="card-header">
+        <h5 class="mb-0">Submit Replacement Request</h5>
+    </div>
+    <div class="card-body">
+        <form action="{% url 'admin_submit_replace_request' %}" method="post">
+            {% csrf_token %}
+            <input type="hidden" name="admin_id" id="selected_admin_id">
+            <input type="hidden" name="candidate_id" id="selected_candidate_id">
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label class="form-label">Admin to Replace</label>
+                        <input type="text" class="form-control" id="selected_admin_name" readonly>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label class="form-label">Replacement Candidate</label>
+                        <input type="text" class="form-control" id="selected_candidate_name" readonly>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label for="reason" class="form-label">Reason for Replacement</label>
+                <textarea class="form-control" id="reason" name="reason" rows="3" required></textarea>
+                <div class="form-text">Please provide a detailed reason for this admin replacement.</div>
+            </div>
+            
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                <button type="button" class="btn btn-secondary" id="cancelReplacementBtn">Cancel</button>
+                <button type="submit" class="btn btn-primary">Submit Request</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Variables to track selections
+        let selectedAdminId = null;
+        let selectedAdminName = null;
+        let selectedCandidateId = null;
+        let selectedCandidateName = null;
+        
+        const replacementForm = document.getElementById('replacementForm');
+        const selectedAdminIdInput = document.getElementById('selected_admin_id');
+        const selectedAdminNameInput = document.getElementById('selected_admin_name');
+        const selectedCandidateIdInput = document.getElementById('selected_candidate_id');
+        const selectedCandidateNameInput = document.getElementById('selected_candidate_name');
+        
+        // Admin selection buttons
+        document.querySelectorAll('.select-admin').forEach(button => {
+            button.addEventListener('click', function() {
+                // Remove previously selected class
+                document.querySelectorAll('.select-admin').forEach(btn => {
+                    btn.closest('tr').classList.remove('table-primary');
+                });
+                
+                // Add selected class to this row
+                this.closest('tr').classList.add('table-primary');
+                
+                // Store admin information
+                selectedAdminId = this.getAttribute('data-admin-id');
+                selectedAdminName = this.getAttribute('data-admin-name');
+                
+                // Update the form
+                selectedAdminIdInput.value = selectedAdminId;
+                selectedAdminNameInput.value = selectedAdminName;
+                
+                // Show form if both admin and candidate are selected
+                updateFormVisibility();
+            });
+        });
+        
+        // Candidate selection buttons
+        document.querySelectorAll('.select-candidate').forEach(button => {
+            button.addEventListener('click', function() {
+                // Remove previously selected class
+                document.querySelectorAll('.select-candidate').forEach(btn => {
+                    btn.closest('tr').classList.remove('table-primary');
+                });
+                
+                // Add selected class to this row
+                this.closest('tr').classList.add('table-primary');
+                
+                // Store candidate information
+                selectedCandidateId = this.getAttribute('data-candidate-id');
+                selectedCandidateName = this.getAttribute('data-candidate-name');
+                
+                // Update the form
+                selectedCandidateIdInput.value = selectedCandidateId;
+                selectedCandidateNameInput.value = selectedCandidateName;
+                
+                // Show form if both admin and candidate are selected
+                updateFormVisibility();
+            });
+        });
+        
+        // Cancel button
+        document.getElementById('cancelReplacementBtn').addEventListener('click', function() {
+            // Reset selected status
+            document.querySelectorAll('.select-admin, .select-candidate').forEach(btn => {
+                btn.closest('tr').classList.remove('table-primary');
+            });
+            
+            // Clear selections
+            selectedAdminId = null;
+            selectedAdminName = null;
+            selectedCandidateId = null;
+            selectedCandidateName = null;
+            
+            // Hide form
+            replacementForm.classList.add('d-none');
+        });
+        
+        // Helper function to check if form should be displayed
+        function updateFormVisibility() {
+            if (selectedAdminId && selectedCandidateId) {
+                replacementForm.classList.remove('d-none');
+            } else {
+                replacementForm.classList.add('d-none');
+            }
+        }
+    });
+</script>
+
+<style>
+    .table th, .table td {
+        vertical-align: middle;
+    }
+</style>
+{% endblock %} 

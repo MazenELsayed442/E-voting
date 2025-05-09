@@ -26,14 +26,22 @@ from django.views.decorators.csrf import csrf_exempt
 # Local application imports
 from .forms import CustomUserCreationForm, LoginForm
 from .models import Candidate, CustomUser, Voter
-from .utils.contract_utils import get_vote_count, submit_vote
+from .utils.contract_utils import get_vote_count, submit_vote, get_web3, get_contract, get_pool_details, get_pool_count, get_voting_contract, get_admin_contract, get_voting_contract_address, get_admin_contract_address
 
 logger = logging.getLogger(__name__)
 
 
 def home(request):
-    categories = ["President", "Vice President", "Secretary"]
-    return render(request, "voting/home.html", {"categories": categories})
+    context = {
+        "categories": ["President", "Vice President", "Secretary"]
+    }
+    
+    # Add admin-specific context
+    if request.user.is_authenticated and request.user.user_type == 'admin':
+        context["is_admin"] = True
+        context["admin_message"] = "Welcome to the administration portal. Please use the Admin Dashboard to manage the voting system."
+    
+    return render(request, "voting/home.html", context)
 
 
 def register(request):
@@ -253,31 +261,40 @@ def change_email(request):
     return redirect("send_otp")
 
 
+def non_admin_required(view_func):
+    """Decorator to ensure admin users cannot access voter-specific views."""
+    def _wrapped_view(request, *args, **kwargs):
+        # First check if user is authenticated
+        if not request.user.is_authenticated:
+            return redirect('login')
+            
+        # Then check if user is verified
+        if not request.user.is_verified:
+            messages.error(request, "❌ You need to verify your account before accessing this page.")
+            return redirect("home")
+            
+        # Finally check if user is an admin
+        if request.user.user_type == 'admin':
+            messages.error(request, "❌ Admins cannot access voting functions.")
+            return redirect("admin_dashboard")
+            
+        # If all checks pass, proceed to the view
+        return view_func(request, *args, **kwargs)
+    return _wrapped_view
+
 @login_required(login_url="/login/")
 @verified_required
+@non_admin_required
 def vote_home(request):
     categories = ["President", "Vice President", "Secretary"]
     return render(request, "voting/vote_home.html", {"categories": categories})
 
 
-CANDIDATES = {
-    "President": [
-        {"id": 1, "name": "Ahmed", "image": "/media/ahmed.jpg", "description": "description", "votes": 0},
-        {"id": 2, "name": "Sara", "image": "/media/sara.jpg", "description": "description", "votes": 0},
-    ],
-    "Vice President": [
-        {"id": 3, "name": "Mohamed", "image": "/media/mohamed.jpg", "description": "description", "votes": 0},
-        {"id": 4, "name": "Nora", "image": "/media/nora.jpg", "description": "description", "votes": 0},
-    ],
-    "Secretary": [
-        {"id": 5, "name": "Omar", "image": "/media/omar.jpg", "description": "description", "votes": 0},
-        {"id": 6, "name": "Laila", "image": "/media/laila.jpg", "description": "description", "votes": 0},
-    ],
-}
 
 
 @login_required(login_url="/login/")
 @verified_required
+@non_admin_required
 def vote_category(request, category):
     allowed_categories = ["President", "Vice President", "Secretary"]
     if category not in allowed_categories:
@@ -308,6 +325,7 @@ def vote_category(request, category):
  
 
 
+@non_admin_required
 def get_candidate_details(request, candidate_id):
     
     candidate = get_object_or_404(Candidate, id=candidate_id)
@@ -346,11 +364,13 @@ def get_candidate_details(request, candidate_id):
 
     return render(request, "voting/candidate_details.html", context)
 
+@non_admin_required
 def vote_candidate(request, candidate_id):
     candidate = get_object_or_404(Candidate, id=candidate_id)  
     return render(request, "voting/vote_candidate.html", {"candidate": candidate})
 
 
+@non_admin_required
 def confirm_vote(request, candidate_id):
     candidate = get_object_or_404(Candidate, id=candidate_id)
     
@@ -482,5 +502,370 @@ def submit_vote_view(request):
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
     return JsonResponse({"error": "Invalid request method"}, status=405)
+
+# Admin Views
+def admin_required(view_func):
+    """Decorator to ensure only admin users can access admin views."""
+    @login_required(login_url="/login/")
+    @verified_required
+    def _wrapped_view(request, *args, **kwargs):
+        if request.user.user_type != 'admin':
+            messages.error(request, "❌ You don't have permission to access this page.")
+            return redirect("home")
+        return view_func(request, *args, **kwargs)
+    return _wrapped_view
+
+@admin_required
+def admin_dashboard(request):
+    """Admin dashboard with overview of voting pools and admin activities."""
+    # Import necessary utility functions
+    from .utils.contract_utils import (
+        get_web3, get_voting_contract, get_admin_contract, 
+        get_pool_count, get_voting_contract_address, get_admin_contract_address
+    )
+    import datetime
+    
+    # Initialize default values
+    active_pools = []
+    active_pools_count = 0
+    total_votes = 0
+    voting_contract_address = get_voting_contract_address() 
+    admin_contract_address = get_admin_contract_address()
+    node_status = "Not connected"
+    chain_id = None
+    
+    # Get web3 connection
+    try:
+        web3 = get_web3()
+        
+        if web3.is_connected():
+            try:
+                chain_id = web3.eth.chain_id
+                latest_block = web3.eth.block_number
+                node_status = f"Connected (Chain ID: {chain_id}, Block: {latest_block})"
+            except Exception as e:
+                node_status = f"Connected but error: {str(e)}"
+        
+        # Get contract info for display
+        try:
+            voting_contract = get_voting_contract()
+            admin_contract = get_admin_contract()
+            print(f"Connected to voting contract at: {voting_contract.address}")
+            print(f"Connected to admin contract at: {admin_contract.address}")
+        except Exception as e:
+            print(f"Error getting contracts: {e}")
+            
+        # Get pool count from the contract
+        try:
+            pool_count = get_pool_count()
+            print(f"Found {pool_count} pool(s)")
+            
+            # Fetch pool details for all pools
+            for pool_id in range(pool_count):
+                # Get pool details from the contract
+                try:
+                    pool_details = voting_contract.functions.getPoolDetails(pool_id).call()
+                    id, category, candidates, start_time, end_time, status = pool_details
+                    
+                    # Convert timestamps to readable dates
+                    start_date = datetime.datetime.fromtimestamp(start_time).strftime('%Y-%m-%d')
+                    end_date = datetime.datetime.fromtimestamp(end_time).strftime('%Y-%m-%d')
+                    
+                    # Add pools regardless of status, but mark status differently
+                    status_text = ["Pending", "Active", "Cancelled", "Ended"][status] if status < 4 else "Unknown"
+                    
+                    # Count votes for each candidate in this pool
+                    pool_votes = 0
+                    candidate_votes = []
+                    
+                    for candidate in candidates:
+                        try:
+                            votes = voting_contract.functions.getVotes(pool_id, candidate).call()
+                            pool_votes += votes
+                            candidate_votes.append({
+                                'name': candidate,
+                                'votes': votes
+                            })
+                        except Exception as e:
+                            print(f"Error getting votes for {candidate} in pool {pool_id}: {e}")
+                            candidate_votes.append({
+                                'name': candidate,
+                                'votes': 0
+                            })
+                    
+                    total_votes += pool_votes
+                    
+                    # Add pool to active pools list
+                    active_pools.append({
+                        'id': pool_id,
+                        'category': category,
+                        'start_time': start_date,
+                        'end_time': end_date,
+                        'votes': pool_votes,
+                        'candidates': candidate_votes,
+                        'status': status_text
+                    })
+                except Exception as e:
+                    print(f"Error getting pool {pool_id} details: {e}")
+            
+            active_pools_count = len([p for p in active_pools if p.get('status') == 'Active'])
+            
+        except Exception as e:
+            # Handle any exceptions connecting to the contract
+            messages.warning(request, f"Error fetching voting pool data: {e}")
+            print(f"Error fetching contract data: {e}")
+    
+    except Exception as e:
+        # Handle any exceptions connecting to web3
+        messages.warning(request, f"Error connecting to blockchain: {e}")
+        print(f"Error connecting to web3: {e}")
+    
+    # Fallback to database candidates if needed
+    if not active_pools:
+        messages.warning(request, "No blockchain data found. Using database data instead.")
+        # Get candidates from the database as fallback
+        categories = Candidate.objects.values_list('category', flat=True).distinct()
+        
+        for category in categories:
+            candidates = Candidate.objects.filter(category=category)
+            category_votes = sum(c.votes for c in candidates)
+            total_votes += category_votes
+            
+            candidate_votes = [{'name': c.name, 'votes': c.votes} for c in candidates]
+            
+            active_pools.append({
+                'id': 0,  # Placeholder ID since not from blockchain
+                'category': category,
+                'start_time': 'N/A',
+                'end_time': 'N/A',
+                'votes': category_votes,
+                'candidates': candidate_votes,
+                'status': 'Active'
+            })
+        
+        active_pools_count = len(active_pools)
+    
+    # Get admin users from the database
+    admin_users = CustomUser.objects.filter(user_type='admin')
+    admin_list = []
+    
+    for admin in admin_users:
+        # Avoid using wallet_address until migration is applied
+        admin_list.append({
+            'id': admin.id,
+            'username': admin.username,
+            'email': admin.email,
+            'wallet_address': None,  # Set to None until migration is applied
+            'is_active': admin.is_active
+        })
+    
+    # Get pending proposals (placeholder for now - will be implemented with smart contract)
+    # In a real implementation, fetch proposals from the contract
+    pending_proposals = 0
+    pending_requests = []
+    
+    context = {
+        'active_tab': 'dashboard',
+        'active_pools_count': active_pools_count,
+        'total_votes': total_votes,
+        'pending_proposals': pending_proposals,
+        'active_pools': active_pools,
+        'pending_requests': pending_requests,
+        'admin_list': admin_list,
+        # Blockchain info for debugging
+        'node_status': node_status,
+        'voting_contract_address': voting_contract_address,
+        'admin_contract_address': admin_contract_address,
+        'chain_id': chain_id
+    }
+    
+    return render(request, "voting/admin_dashboard.html", context)
+
+@admin_required
+def admin_create_pool(request):
+    """Form to create a new voting pool."""
+    context = {
+        'active_tab': 'create_pool',
+    }
+    return render(request, "voting/admin_create_pool.html", context)
+
+@admin_required
+def admin_cancel_pool(request):
+    """Interface to request cancellation of a voting pool."""
+    # Placeholder data
+    context = {
+        'active_tab': 'cancel_pool',
+        'active_pools': [
+            {'id': 1, 'category': 'President', 'start_time': '2025-06-01', 'end_time': '2025-06-30'},
+            {'id': 2, 'category': 'Vice President', 'start_time': '2025-06-01', 'end_time': '2025-06-30'},
+        ]
+    }
+    return render(request, "voting/admin_cancel_pool.html", context)
+
+@admin_required
+def admin_replace_admin(request):
+    """Interface to request admin replacement."""
+    # Placeholder data
+    context = {
+        'active_tab': 'replace_admin',
+        'admins': [
+            {'id': 1, 'username': 'Admin 1', 'email': 'admin1@example.com', 'wallet_address': '0x1234567890abcdef1234567890abcdef12345678'},
+            {'id': 2, 'username': 'Admin 2', 'email': 'admin2@example.com', 'wallet_address': '0xabcdef1234567890abcdef1234567890abcdef12'},
+        ],
+        'candidates': [
+            {'id': 1, 'username': 'User 1', 'email': 'user1@example.com'},
+            {'id': 2, 'username': 'User 2', 'email': 'user2@example.com'},
+        ]
+    }
+    return render(request, "voting/admin_replace_admin.html", context)
+
+@admin_required
+def admin_proposals(request):
+    """Page to review and approve/reject proposals."""
+    # Placeholder data
+    context = {
+        'active_tab': 'proposals',
+        'proposals': [
+            {
+                'id': 1, 
+                'type': 'Cancel Pool', 
+                'requester': 'admin@example.com',
+                'created_at': '2025-05-28',
+                'details': 'Request to cancel President voting pool due to technical issues.'
+            },
+        ]
+    }
+    return render(request, "voting/admin_proposals.html", context)
+
+@admin_required
+def wallet_connect(request):
+    """Page to connect blockchain wallet."""
+    context = {
+        'active_tab': 'wallet',
+    }
+    return render(request, "voting/wallet_connect.html", context)
+
+@admin_required
+def admin_view_pool(request, pool_id):
+    """View details of a specific voting pool with real blockchain data."""
+    from .utils.contract_utils import get_contract, get_pool_details
+    import datetime
+    
+    try:
+        # Get pool details from the blockchain
+        contract = get_contract()
+        pool_details = get_pool_details(pool_id)
+        id, category, candidates, start_time, end_time, status = pool_details
+        
+        # Convert timestamps to readable dates
+        start_date = datetime.datetime.fromtimestamp(start_time).strftime('%Y-%m-%d')
+        end_date = datetime.datetime.fromtimestamp(end_time).strftime('%Y-%m-%d')
+        
+        # Get votes for each candidate
+        candidate_votes = []
+        total_votes = 0
+        
+        for candidate in candidates:
+            votes = contract.functions.getVotes(pool_id, candidate).call()
+            total_votes += votes
+            candidate_votes.append({
+                'name': candidate,
+                'votes': votes
+            })
+        
+        pool = {
+            'id': id,
+            'category': category,
+            'start_time': start_date,
+            'end_time': end_date,
+            'votes': total_votes,
+            'candidates': candidate_votes
+        }
+        
+    except Exception as e:
+        # If blockchain data retrieval fails, fall back to database
+        messages.error(request, f"Error retrieving blockchain data: {e}")
+        print(f"Blockchain data retrieval error: {e}")
+        
+        # Fallback to database - create mock pool data based on database
+        try:
+            # Try to use database categories (in case pool_id maps to category index)
+            categories = list(Candidate.objects.values_list('category', flat=True).distinct())
+            category = categories[pool_id] if pool_id < len(categories) else "Unknown"
+        except:
+            category = "Unknown"
+            
+        # Get candidates for this category
+        candidates = Candidate.objects.filter(category=category)
+        total_votes = sum(c.votes for c in candidates)
+        
+        candidate_votes = [{'name': c.name, 'votes': c.votes} for c in candidates]
+        
+        pool = {
+            'id': pool_id,
+            'category': category,
+            'start_time': 'N/A',
+            'end_time': 'N/A',
+            'votes': total_votes,
+            'candidates': candidate_votes
+        }
+    
+    context = {
+        'active_tab': 'dashboard',
+        'pool': pool
+    }
+    
+    return render(request, "voting/admin_view_pool.html", context)
+
+@admin_required
+def admin_view_proposal(request, proposal_id):
+    """View details of a specific proposal."""
+    # Placeholder data
+    proposal = {
+        'id': proposal_id,
+        'type': 'Cancel Pool',
+        'requester': 'admin@example.com',
+        'created_at': '2025-05-28',
+        'details': 'Request to cancel President voting pool due to technical issues.',
+        'status': 'Pending'
+    }
+    context = {
+        'active_tab': 'proposals',
+        'proposal': proposal
+    }
+    return render(request, "voting/admin_view_proposal.html", context)
+
+# Admin API endpoints (These would be AJAX endpoints in a real implementation)
+@admin_required
+def admin_submit_cancel_request(request):
+    """API endpoint to submit a cancel request."""
+    if request.method == 'POST':
+        # Process the cancel request
+        messages.success(request, "✅ Cancel request submitted successfully.")
+    return redirect('admin_cancel_pool')
+
+@admin_required
+def admin_submit_replace_request(request):
+    """API endpoint to submit an admin replacement request."""
+    if request.method == 'POST':
+        # Process the replacement request
+        messages.success(request, "✅ Replacement request submitted successfully.")
+    return redirect('admin_replace_admin')
+
+@admin_required
+def admin_approve_proposal(request):
+    """API endpoint to approve a proposal."""
+    if request.method == 'POST':
+        # Process the approval
+        messages.success(request, "✅ Proposal approved successfully.")
+    return redirect('admin_proposals')
+
+@admin_required
+def admin_reject_proposal(request):
+    """API endpoint to reject a proposal."""
+    if request.method == 'POST':
+        # Process the rejection
+        messages.success(request, "✅ Proposal rejected successfully.")
+    return redirect('admin_proposals')
 
 

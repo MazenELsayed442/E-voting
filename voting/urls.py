@@ -7,7 +7,13 @@ from .views import (
     home, vote_home, register, login_view, logout_view,
     send_otp, verify_otp, change_email, resend_otp,
     vote_category, get_candidate_details, verify_totp, vote_candidate,
-    send_gmail_otp_ajax, verify_gmail_otp_ajax, verify_google_otp_ajax,login_otp,save_signature
+    send_gmail_otp_ajax, verify_gmail_otp_ajax, verify_google_otp_ajax,login_otp,save_signature,
+    
+    # Admin views
+    admin_dashboard, admin_create_pool, admin_cancel_pool, admin_replace_admin,
+    admin_proposals, wallet_connect, admin_view_pool, admin_view_proposal,
+    admin_submit_cancel_request, admin_submit_replace_request,
+    admin_approve_proposal, admin_reject_proposal
 )
 
 urlpatterns = [
@@ -42,6 +48,22 @@ urlpatterns = [
     path("ajax/verify_gmail_otp/", verify_gmail_otp_ajax, name="verify_gmail_otp_ajax"),
     path("ajax/verify_google_otp/", verify_google_otp_ajax, name="verify_google_otp_ajax"),
     path('save-signature/',save_signature, name='save_signature'),
+    
+    # Admin pages
+    path('admin-portal/dashboard/', admin_dashboard, name='admin_dashboard'),
+    path('admin-portal/create-pool/', admin_create_pool, name='admin_create_pool'),
+    path('admin-portal/cancel-pool/', admin_cancel_pool, name='admin_cancel_pool'),
+    path('admin-portal/replace-admin/', admin_replace_admin, name='admin_replace_admin'),
+    path('admin-portal/proposals/', admin_proposals, name='admin_proposals'),
+    path('admin-portal/wallet-connect/', wallet_connect, name='wallet_connect'),
+    path('admin-portal/view-pool/<int:pool_id>/', admin_view_pool, name='admin_view_pool'),
+    path('admin-portal/view-proposal/<int:proposal_id>/', admin_view_proposal, name='admin_view_proposal'),
+    
+    # Admin API endpoints
+    path('admin-portal/api/submit-cancel-request/', admin_submit_cancel_request, name='admin_submit_cancel_request'),
+    path('admin-portal/api/submit-replace-request/', admin_submit_replace_request, name='admin_submit_replace_request'),
+    path('admin-portal/api/approve-proposal/', admin_approve_proposal, name='admin_approve_proposal'),
+    path('admin-portal/api/reject-proposal/', admin_reject_proposal, name='admin_reject_proposal'),
 ]
 
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

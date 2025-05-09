@@ -6,7 +6,7 @@ async function main() {
   const VOTING_CONTRACT_ADDRESS = "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512"; // <-- REPLACE with your deployed Voting contract address if different
   const CATEGORY = "Manual Test Pool"; // The category name for the pool
   const CANDIDATES = ["ahmed", "Ahmed","Omar",]; // List of candidates for this pool
-  const DURATION_SECONDS = 3600; // Duration of the pool in seconds (1 hour)
+  const DURATION_SECONDS = 3600 * 5; // Duration of the pool in seconds (5 hours)
   const TIME_BUFFER_SECONDS = 15; // Buffer time to add to current time for start time
 
   console.log(`Attempting to create a new voting pool on contract: ${VOTING_CONTRACT_ADDRESS}`);

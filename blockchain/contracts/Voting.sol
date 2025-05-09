@@ -20,7 +20,7 @@ interface IVotingAdmin {
  * authorization of sensitive actions like pool creation and cancellation.
  */
 contract Voting {
-     using Strings for uint256;
+    using Strings for uint256;
 
     // --- State Variables ---
 
@@ -30,12 +30,12 @@ contract Voting {
     enum PoolStatus { Pending, Active, Cancelled, Ended }
 
     struct VotingPool {
-        uint256 id;                 // Unique identifier for the pool
-        string category;            // Name or category of the vote (e.g., "President")
-        string[] candidates;        // List of candidates for this pool
-        uint256 startTime;          // Timestamp when voting begins
-        uint256 endTime;            // Timestamp when voting ends
-        PoolStatus status;          // Current status of the pool (Pending, Active, etc.)
+        uint256 id;              // Unique identifier for the pool
+        string category;         // Name or category of the vote (e.g., "President")
+        string[] candidates;     // List of candidates for this pool
+        uint256 startTime;       // Timestamp when voting begins
+        uint256 endTime;         // Timestamp when voting ends
+        PoolStatus status;       // Current status of the pool (Pending, Active, etc.)
         mapping(string => uint256) votes; // Candidate name => vote count mapping for this pool
         mapping(address => bool) hasVoted; // Voter address => voted status mapping for this pool
     }
@@ -123,11 +123,10 @@ contract Voting {
 
         // Set initial status based on start time
         if (_startTime > block.timestamp) {
-             pool.status = PoolStatus.Pending;
+            pool.status = PoolStatus.Pending;
         } else {
-             pool.status = PoolStatus.Active;
+            pool.status = PoolStatus.Active;
         }
-
 
         emit PoolCreated(poolId, _category, _candidates, _startTime, _endTime);
     }
@@ -147,7 +146,7 @@ contract Voting {
         emit PoolCancelled(_poolId);
     }
 
-     /**
+    /**
      * @notice Allows anyone to transition an Active pool to Ended status if its endTime has passed.
      * @dev Helps keep pool statuses accurate without requiring admin intervention for normal ending.
      * @param _poolId The ID of the pool to potentially end.
@@ -170,6 +169,19 @@ contract Voting {
      * @param _candidate The name of the candidate to vote for.
      */
     function vote(uint256 _poolId, string memory _candidate) public {
+        // --- START: MODIFICATION TO PREVENT ADMINS FROM VOTING ---
+        require(address(votingAdminContract) != address(0), "Voting: Admin contract not set");
+        address[3] memory currentAdmins = votingAdminContract.getAdmins();
+        bool isCallerAdmin = false;
+        for (uint i = 0; i < currentAdmins.length; i++) {
+            if (currentAdmins[i] == msg.sender) {
+                isCallerAdmin = true;
+                break;
+            }
+        }
+        require(!isCallerAdmin, "Voting: Admins are not allowed to vote");
+        // --- END: MODIFICATION TO PREVENT ADMINS FROM VOTING ---
+
         VotingPool storage pool = votingPools[_poolId];
         require(pool.id == _poolId || (_poolId == 0 && bytes(pool.category).length != 0), "Voting: Pool does not exist"); // Check pool exists
         require(pool.status == PoolStatus.Active, "Voting: Voting pool is not active");
@@ -243,10 +255,10 @@ contract Voting {
     }
 
     /**
-      * @notice Gets the list of candidates for a specific pool.
-      * @param _poolId The ID of the pool.
-      * @return candidates An array of candidate names.
-      */
+     * @notice Gets the list of candidates for a specific pool.
+     * @param _poolId The ID of the pool.
+     * @return candidates An array of candidate names.
+     */
     function getCandidates(uint256 _poolId) public view returns (string[] memory candidates) {
         return votingPools[_poolId].candidates;
     }
@@ -263,11 +275,11 @@ contract Voting {
         return votingPools[_poolId].hasVoted[_voter];
     }
 
-     /**
-      * @notice Returns the total number of pools created.
-      * @return The next pool ID, which represents the count.
-      */
-     function getPoolCount() public view returns (uint256) {
-         return nextPoolId;
-     }
+    /**
+     * @notice Returns the total number of pools created.
+     * @return The next pool ID, which represents the count.
+     */
+    function getPoolCount() public view returns (uint256) {
+        return nextPoolId;
+    }
 }
