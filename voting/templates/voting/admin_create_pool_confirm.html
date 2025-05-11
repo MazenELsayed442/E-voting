@@ -1,0 +1,201 @@
+{% extends 'voting/admin_base.html' %}
+{% load static %}
+
+{% block admin_title %}Confirm Voting Pool Creation{% endblock %}
+
+{% block admin_content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Confirm Voting Pool Creation</h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> Please review the information below and click "Confirm & Create" to send the transaction to the blockchain. A MetaMask window will appear for you to sign the transaction.
+                    </div>
+                    
+                    <h5 class="mt-4">Voting Pool Information:</h5>
+                    <div class="row mb-3">
+                        <div class="col-md-4 fw-bold">Category:</div>
+                        <div class="col-md-8">{{ category }}</div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-4 fw-bold">Description:</div>
+                        <div class="col-md-8">{{ description }}</div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-4 fw-bold">Start Date:</div>
+                        <div class="col-md-8" id="start-date"></div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-4 fw-bold">End Date:</div>
+                        <div class="col-md-8" id="end-date"></div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-4 fw-bold">Wallet Address:</div>
+                        <div class="col-md-8 text-break">{{ admin_address }}</div>
+                    </div>
+                    
+                    <h5 class="mt-4">Candidates:</h5>
+                    <ul class="list-group mb-4">
+                        {% for candidate in candidates %}
+                        <li class="list-group-item">{{ candidate }}</li>
+                        {% endfor %}
+                    </ul>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'admin_create_pool' %}" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> Back to Edit
+                        </a>
+                        <button id="confirm-btn" class="btn btn-success">
+                            <i class="bi bi-check-circle"></i> Confirm & Create
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Status Modal -->
+    <div class="modal fade" id="statusModal" tabindex="-1" aria-labelledby="statusModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="statusModalLabel">Transaction Status</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="status-message">
+                    Preparing the transaction...
+                </div>
+                <div class="modal-footer" id="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+<script>
+    // Set up our variables
+    const startTimestamp = {{ start_timestamp }};
+    const endTimestamp = {{ end_timestamp }};
+    const adminAddress = "{{ admin_address }}";
+    const category = "{{ category }}";
+    const contractAddress = "{{ voting_contract_address }}";
+    
+    // Create an array for candidates
+    const candidates = [];
+    {% for candidate in candidates %}
+    candidates.push("{{ candidate }}");
+    {% endfor %}
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        // Convert timestamps to readable dates
+        const startDate = new Date(startTimestamp * 1000);
+        const endDate = new Date(endTimestamp * 1000);
+        
+        document.getElementById('start-date').textContent = startDate.toLocaleDateString();
+        document.getElementById('end-date').textContent = endDate.toLocaleDateString();
+        
+        // Confirm button
+        const confirmBtn = document.getElementById('confirm-btn');
+        confirmBtn.addEventListener('click', createVotingPool);
+        
+        // Status modal
+        const statusModal = new bootstrap.Modal(document.getElementById('statusModal'));
+    });
+    
+    // Update status function
+    function updateStatus(message, isError = false, isSuccess = false) {
+        const statusMessage = document.getElementById('status-message');
+        statusMessage.innerHTML = message;
+        
+        if (isError) {
+            statusMessage.className = 'text-danger';
+        } else if (isSuccess) {
+            statusMessage.className = 'text-success';
+        } else {
+            statusMessage.className = '';
+        }
+    }
+    
+    // Create voting pool function
+    async function createVotingPool() {
+        // Check if MetaMask is installed
+        if (typeof window.ethereum === 'undefined') {
+            alert('Please install MetaMask first to sign the transaction.');
+            return;
+        }
+        
+        // Get modal
+        const statusModal = new bootstrap.Modal(document.getElementById('statusModal'));
+        statusModal.show();
+        
+        try {
+            updateStatus('Connecting to wallet...');
+            
+            // Request account connection
+            const provider = new ethers.providers.Web3Provider(window.ethereum);
+            await provider.send("eth_requestAccounts", []);
+            const signer = provider.getSigner();
+            const address = await signer.getAddress();
+            
+            // Verify connected wallet matches admin wallet
+            if (address.toLowerCase() !== adminAddress.toLowerCase()) {
+                updateStatus('Error: Connected wallet address does not match admin wallet. Please connect the correct wallet.', true);
+                return;
+            }
+            
+            updateStatus('Preparing transaction...');
+            
+            // Basic ABI for createPool function
+            const contractABI = [{
+                "inputs": [
+                    {"internalType": "string", "name": "_category", "type": "string"},
+                    {"internalType": "string[]", "name": "_candidates", "type": "string[]"},
+                    {"internalType": "uint256", "name": "_startTime", "type": "uint256"},
+                    {"internalType": "uint256", "name": "_endTime", "type": "uint256"}
+                ],
+                "name": "createPool",
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            }];
+            
+            const contract = new ethers.Contract(contractAddress, contractABI, signer);
+            
+            updateStatus('Sending transaction. Please sign it in MetaMask...');
+            
+            // Send transaction
+            const tx = await contract.createPool(category, candidates, startTimestamp, endTimestamp);
+            
+            updateStatus('Transaction sent successfully. Waiting for confirmation...');
+            
+            // Wait for confirmation
+            const receipt = await tx.wait();
+            
+            // Transaction success
+            updateStatus('Voting pool created successfully!<br>Transaction Hash: ' + receipt.transactionHash, false, true);
+            
+            // Add dashboard button
+            const footer = document.getElementById('modal-footer');
+            const dashboardBtn = document.createElement('a');
+            dashboardBtn.href = "{% url 'admin_dashboard' %}";
+            dashboardBtn.className = "btn btn-primary";
+            dashboardBtn.innerText = "Go to Dashboard";
+            footer.prepend(dashboardBtn);
+            
+        } catch (error) {
+            console.error(error);
+            updateStatus('Error: ' + error.message, true);
+        }
+    }
+</script>
+{% endblock %} 

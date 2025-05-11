@@ -26,7 +26,7 @@ from django.views.decorators.csrf import csrf_exempt
 # Local application imports
 from .forms import CustomUserCreationForm, LoginForm
 from .models import Candidate, CustomUser, Voter
-from .utils.contract_utils import get_vote_count, submit_vote, get_web3, get_contract, get_pool_details, get_pool_count, get_voting_contract, get_admin_contract, get_voting_contract_address, get_admin_contract_address
+from .utils.contract_utils import get_vote_count, submit_vote, get_web3, get_contract, get_pool_details, get_pool_count, get_voting_contract, get_admin_contract, get_voting_contract_address, get_admin_contract_address, create_pool
 
 logger = logging.getLogger(__name__)
 
@@ -388,8 +388,12 @@ def save_wallet(request):
         data = json.loads(request.body)
         wallet_address = data.get("wallet_address")
         
+        print(f"Received wallet address: {wallet_address}")
         
-        print(f"Received wallet address: {wallet_address}")  
+        # حفظ عنوان المحفظة في قاعدة البيانات للمستخدم الحالي
+        user = request.user
+        user.wallet_address = wallet_address
+        user.save(update_fields=['wallet_address'])
         
         return JsonResponse({"message": "Wallet saved successfully!"})
     return JsonResponse({"error": "Invalid request"}, status=400)
@@ -684,6 +688,84 @@ def admin_dashboard(request):
 @admin_required
 def admin_create_pool(request):
     """Form to create a new voting pool."""
+    import datetime
+    from .utils.contract_utils import get_web3, get_voting_contract_address
+    
+    if request.method == 'POST':
+        try:
+            # تحقق من أن المستخدم لديه محفظة متصلة
+            if not request.user.wallet_address:
+                messages.error(request, "You must connect your blockchain wallet first. Please go to 'Connect Wallet' page.")
+                return redirect('wallet_connect')
+                
+            # Get form data
+            category = request.POST.get('category')
+            description = request.POST.get('description')
+            start_date = request.POST.get('start_date')
+            end_date = request.POST.get('end_date')
+            min_admins = int(request.POST.get('min_admins', 3))
+            
+            # Get candidate data
+            candidate_names = request.POST.getlist('candidate_name[]')
+            candidate_descriptions = request.POST.getlist('candidate_description[]')
+            
+            # Validate data
+            if not category or not start_date or not end_date:
+                messages.error(request, "Please provide all required fields")
+                return redirect('admin_create_pool')
+            
+            if len(candidate_names) < 2:
+                messages.error(request, "At least two candidates are required")
+                return redirect('admin_create_pool')
+            
+            # Convert dates to timestamps
+            start_timestamp = int(datetime.datetime.strptime(start_date, '%Y-%m-%d').timestamp())
+            end_timestamp = int(datetime.datetime.strptime(end_date, '%Y-%m-%d').timestamp())
+            
+            # Use connected wallet via Web3 instead of private key
+            web3 = get_web3()
+            
+            if not web3.is_connected():
+                messages.error(request, "Cannot connect to blockchain. Make sure the blockchain server is running.")
+                return redirect('admin_create_pool')
+            
+            # Convert to checksum address for blockchain
+            admin_address = web3.to_checksum_address(request.user.wallet_address)
+            
+            # Call smart contract directly with user's account
+            # Note: This requires MetaMask and will show a signing prompt for the user
+            messages.success(request, "Transaction prepared. MetaMask will prompt you to sign the transaction.")
+            
+            # Create candidate records in database
+            for i, name in enumerate(candidate_names):
+                description = candidate_descriptions[i] if i < len(candidate_descriptions) else ""
+                # Check if candidate already exists
+                existing = Candidate.objects.filter(name=name, category=category).first()
+                if not existing:
+                    # Create new candidate in database
+                    Candidate.objects.create(
+                        name=name,
+                        description=description,
+                        category=category,
+                        votes=0  # Start with zero votes
+                    )
+            
+            context = {
+                'active_tab': 'create_pool',
+                'category': category,
+                'candidates': candidate_names,
+                'start_timestamp': start_timestamp,
+                'end_timestamp': end_timestamp,
+                'admin_address': admin_address,
+                'description': description,
+                'voting_contract_address': get_voting_contract_address(),
+                'show_confirmation': True
+            }
+            return render(request, "voting/admin_create_pool_confirm.html", context)
+            
+        except Exception as e:
+            messages.error(request, f"Error creating voting pool: {e}")
+    
     context = {
         'active_tab': 'create_pool',
     }

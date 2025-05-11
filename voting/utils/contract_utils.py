@@ -189,3 +189,50 @@ def get_voting_contract_address():
 def get_admin_contract_address():
     """Return the admin contract address"""
     return ADMIN_CONTRACT_ADDRESS
+
+def create_pool(category, candidates, start_time, end_time, admin_private_key):
+    """Create a new voting pool on the blockchain
+    
+    Args:
+        category: The name/category of the voting pool
+        candidates: List of candidate names
+        start_time: Unix timestamp for start time
+        end_time: Unix timestamp for end time
+        admin_private_key: Private key of the admin creating the pool
+        
+    Returns:
+        Transaction hash if successful, None if failed
+    """
+    web3 = get_web3()
+    contract = get_voting_contract()
+    account = web3.eth.account.from_key(admin_private_key)
+    print(f"Creating pool '{category}' with {len(candidates)} candidates from {account.address}")
+    
+    nonce = web3.eth.get_transaction_count(account.address)
+    
+    try:
+        chain_id = web3.eth.chain_id
+    except:
+        chain_id = 31337  # Default Hardhat chain ID
+    
+    # Build the transaction
+    txn = contract.functions.createPool(
+        category,
+        candidates,
+        start_time,
+        end_time
+    ).build_transaction({
+        'chainId': chain_id,
+        'gas': 3000000,  # Higher gas limit for contract creation
+        'gasPrice': web3.eth.gas_price,
+        'nonce': nonce,
+    })
+    
+    # Sign and send the transaction
+    try:
+        signed_txn = web3.eth.account.sign_transaction(txn, admin_private_key)
+        txn_hash = web3.eth.send_raw_transaction(signed_txn.rawTransaction)
+        return txn_hash.hex()
+    except Exception as e:
+        print(f"Error creating pool: {e}")
+        return None
