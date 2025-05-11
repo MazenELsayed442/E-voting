@@ -50,213 +50,209 @@
                 </div>
             </div>
         </div>
+        {% if "Connected" in node_status and active_pools_count == 0 and blockchain_connected %}
+        <div class="alert alert-info mt-3">
+            <i class="bi bi-info-circle-fill me-2"></i>
+            Blockchain is connected but no voting pools have been created yet. Use the "Create Voting Pool" feature to create your first pool.
+        </div>
+        {% elif "Connected" not in node_status %}
+        <div class="alert alert-warning mt-3">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            <strong>Blockchain connection issue:</strong> Make sure the Hardhat node is running. Start it with <code>npx hardhat node</code> and deploy contracts with <code>npx hardhat run --network localhost scripts/deploy.js</code>
+        </div>
+        {% endif %}
     </div>
 </div>
 
 <!-- Dashboard Stats -->
-<div class="dashboard-stats">
-    <div class="row">
-        <div class="col-md-4">
-            <div class="card stat-card bg-primary text-white">
-                <div class="card-body">
-                    <h5 class="card-title">Active Pools</h5>
-                    <h2 class="stat-number">{{ active_pools_count }}</h2>
-                    <p class="card-text">Current active voting pools</p>
-                </div>
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card stat-card">
+            <div class="card-body">
+                <h5 class="card-title">Active Voting Pools</h5>
+                <div class="stat-number">{{ active_pools_count }}</div>
+                <div class="stat-icon"><i class="bi bi-file-bar-graph"></i></div>
             </div>
         </div>
-        <div class="col-md-4">
-            <div class="card stat-card bg-success text-white">
-                <div class="card-body">
-                    <h5 class="card-title">Total Votes</h5>
-                    <h2 class="stat-number">{{ total_votes }}</h2>
-                    <p class="card-text">Votes cast across all pools</p>
-                </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card">
+            <div class="card-body">
+                <h5 class="card-title">Total Votes</h5>
+                <div class="stat-number">{{ total_votes }}</div>
+                <div class="stat-icon"><i class="bi bi-person-fill-check"></i></div>
             </div>
         </div>
-        <div class="col-md-4">
-            <div class="card stat-card bg-info text-white">
-                <div class="card-body">
-                    <h5 class="card-title">Pending Proposals</h5>
-                    <h2 class="stat-number">{{ pending_proposals }}</h2>
-                    <p class="card-text">Awaiting admin approval</p>
-                </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card">
+            <div class="card-body">
+                <h5 class="card-title">Pending Proposals</h5>
+                <div class="stat-number">{{ pending_proposals }}</div>
+                <div class="stat-icon"><i class="bi bi-hourglass-split"></i></div>
             </div>
         </div>
     </div>
 </div>
 
-<div class="row mt-4">
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">Voting Pools</h5>
+<!-- Active Voting Pools -->
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Active Voting Pools</h5>
+        <a href="{% url 'admin_create_pool' %}" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-circle me-1"></i> Create New Pool
+        </a>
+    </div>
+    <div class="card-body">
+        {% if not active_pools %}
+            <div class="text-center py-4">
+                <i class="bi bi-search display-4 text-muted"></i>
+                <p class="text-muted mt-3">No active voting pools found</p>
+                {% if node_status == "Not connected" %}
+                <p class="text-danger">Blockchain is not connected. Start the Hardhat node to see real blockchain data.</p>
+                {% else %}
+                <a href="{% url 'admin_create_pool' %}" class="btn btn-outline-primary mt-2">
+                    <i class="bi bi-plus-circle me-1"></i> Create Your First Pool
+                </a>
+                {% endif %}
             </div>
+        {% else %}
             <div class="table-responsive">
                 <table class="table table-hover">
                     <thead>
                         <tr>
+                            <th>ID</th>
                             <th>Category</th>
-                            <th>Start Date</th>
-                            <th>End Date</th>
                             <th>Status</th>
-                            <th>Action</th>
+                            <th>Votes</th>
+                            <th>Time Period</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for pool in active_pools %}
                         <tr>
+                            <td>{{ pool.id }}</td>
                             <td>{{ pool.category }}</td>
-                            <td>{{ pool.start_time }}</td>
-                            <td>{{ pool.end_time }}</td>
                             <td>
                                 {% if pool.status == 'Active' %}
                                 <span class="badge bg-success">Active</span>
                                 {% elif pool.status == 'Pending' %}
                                 <span class="badge bg-warning">Pending</span>
-                                {% elif pool.status == 'Cancelled' %}
-                                <span class="badge bg-danger">Cancelled</span>
                                 {% elif pool.status == 'Ended' %}
                                 <span class="badge bg-secondary">Ended</span>
+                                {% elif pool.status == 'Cancelled' %}
+                                <span class="badge bg-danger">Cancelled</span>
                                 {% else %}
-                                <span class="badge bg-secondary">{{ pool.status }}</span>
+                                <span class="badge bg-info">{{ pool.status }}</span>
                                 {% endif %}
                             </td>
+                            <td>{{ pool.votes }}</td>
+                            <td>{{ pool.start_time }} to {{ pool.end_time }}</td>
                             <td>
-                                <a href="{% url 'admin_view_pool' pool.id %}" class="btn btn-sm btn-outline-primary">
-                                    View
+                                <a href="{% url 'admin_view_pool' pool.id %}" class="btn btn-sm btn-info">
+                                    <i class="bi bi-eye"></i>
                                 </a>
+                                {% if pool.status == 'Active' %}
+                                <a href="{% url 'admin_cancel_pool_specific' pool.id %}" class="btn btn-sm btn-danger">
+                                    <i class="bi bi-x-circle"></i>
+                                </a>
+                                {% endif %}
                             </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="5" class="text-center">No voting pools found</td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
-        </div>
+        {% endif %}
     </div>
-    
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">Pending Requests</h5>
-            </div>
-            <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead>
-                        <tr>
-                            <th>Type</th>
-                            <th>Requester</th>
-                            <th>Date</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for request in pending_requests %}
-                        <tr>
-                            <td>{{ request.type }}</td>
-                            <td>{{ request.requester }}</td>
-                            <td>{{ request.created_at }}</td>
-                            <td>
-                                <a href="{% url 'admin_view_proposal' request.id %}" class="btn btn-sm btn-outline-primary">
-                                    Review
-                                </a>
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="4" class="text-center">No pending requests</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+</div>
+
+<!-- Admin List -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Admin Users</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Wallet Address</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for admin in admin_list %}
+                    <tr>
+                        <td>{{ admin.username }}</td>
+                        <td>{{ admin.email }}</td>
+                        <td>
+                            {% if admin.wallet_address %}
+                            <span class="small font-monospace">{{ admin.wallet_address }}</span>
+                            {% else %}
+                            <span class="text-muted">Not connected</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if admin.is_active %}
+                            <span class="badge bg-success">Active</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Inactive</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="text-center">No admin users found</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
 
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">Admin List</h5>
-            </div>
-            <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead>
-                        <tr>
-                            <th>Username</th>
-                            <th>Email</th>
-                            <th>Wallet Address</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for admin in admin_list %}
-                        <tr>
-                            <td>{{ admin.username }}</td>
-                            <td>{{ admin.email }}</td>
-                            <td>
-                                {% if admin.wallet_address %}
-                                <span class="badge bg-success">Connected</span>
-                                <span class="wallet-address">{{ admin.wallet_address|truncatechars:12 }}</span>
-                                {% else %}
-                                <span class="badge bg-warning">Not connected</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if admin.is_active %}
-                                <span class="badge bg-success">Active</span>
-                                {% else %}
-                                <span class="badge bg-danger">Inactive</span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="4" class="text-center">No admins found</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+{% if pending_requests %}
+<!-- Pending Requests -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Pending Approval Requests</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Type</th>
+                        <th>Proposed By</th>
+                        <th>Approvals</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for req in pending_requests %}
+                    <tr>
+                        <td>{{ req.id }}</td>
+                        <td>{{ req.type }}</td>
+                        <td>{{ req.proposer }}</td>
+                        <td>{{ req.approvals }}/3</td>
+                        <td>
+                            <a href="{% url 'admin_view_proposal' req.id %}" class="btn btn-sm btn-primary">Review</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
+{% endif %}
 
-<style>
-    .stat-card {
-        border-radius: 10px;
-        margin-bottom: 15px;
-    }
-    
-    .stat-number {
-        font-size: 3rem;
-        font-weight: bold;
-        margin: 10px 0;
-    }
-    
-    .wallet-address {
-        font-family: monospace;
-        background-color: #f8f9fa;
-        padding: 2px 5px;
-        border-radius: 3px;
-        margin-left: 5px;
-    }
-    
-    .code-block {
-        font-family: monospace;
-        background-color: #f8f9fa;
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 0.9rem;
-    }
-    
-    .table th, .table td {
-        vertical-align: middle;
-    }
-</style>
+<!-- Include Chart.js for data visualization -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 {% endblock %} 

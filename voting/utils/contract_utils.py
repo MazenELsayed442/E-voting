@@ -2,6 +2,7 @@ from web3 import Web3
 import json
 import os
 import logging
+import glob
 
 # Get logger
 logger = logging.getLogger(__name__)
@@ -16,6 +17,10 @@ VOTING_CONTRACT_ADDRESS = os.environ.get("VOTING_CONTRACT_ADDRESS", "0xe7f1725E7
 # Default for admin contract (change this to your actual admin contract address)
 ADMIN_CONTRACT_ADDRESS = os.environ.get("ADMIN_CONTRACT_ADDRESS", "0x5FbDB2315678afecb367f032d93F642f64180aa3")
 
+# ABI paths for different contracts
+VOTING_ABI_PATH = "artifacts/contracts/Voting.sol/Voting.json"
+ADMIN_ABI_PATH = "artifacts/contracts/VotingAdmin.sol/VotingAdmin.json"
+
 # Print the contract addresses for debugging
 print(f"Using Voting Contract Address: {VOTING_CONTRACT_ADDRESS}")
 print(f"Using Admin Contract Address: {ADMIN_CONTRACT_ADDRESS}")
@@ -23,13 +28,64 @@ print(f"Using Admin Contract Address: {ADMIN_CONTRACT_ADDRESS}")
 # Default to use for functions
 CONTRACT_ADDRESS = VOTING_CONTRACT_ADDRESS
 
-# ABI paths for different contracts
-VOTING_ABI_PATH = "artifacts/contracts/Voting.sol/Voting.json"
-ADMIN_ABI_PATH = "artifacts/contracts/VotingAdmin.sol/VotingAdmin.json"
+def update_contract_addresses():
+    """Try to find and update the latest contract addresses from deployment artifacts"""
+    global VOTING_CONTRACT_ADDRESS, ADMIN_CONTRACT_ADDRESS
+    
+    # Look for deployment log files
+    deployment_logs = []
+    # Check multiple potential locations where logs might be stored
+    possible_paths = [
+        'blockchain/deployment_logs/*.json',
+        'deployment_logs/*.json',
+        'blockchain/*.log',
+        'logs/*.json',
+        'blockchain/logs/*.json'
+    ]
+    
+    # Check if there's a deployment flag file from the batch script
+    if os.path.exists("deployment_complete.flag"):
+        print("Found deployment flag file, contracts should be deployed")
+    
+    for path_pattern in possible_paths:
+        logs = glob.glob(path_pattern)
+        if logs:
+            deployment_logs.extend(logs)
+    
+    if not deployment_logs:
+        # If no deployment logs found, try to read from hardhat cache
+        cache_paths = [
+            'blockchain/artifacts/build-info/*.json',
+            'artifacts/build-info/*.json'
+        ]
+        for path_pattern in cache_paths:
+            cache_files = glob.glob(path_pattern)
+            if cache_files:
+                # Sort by modification time to get the latest one
+                latest_cache = sorted(cache_files, key=os.path.getmtime, reverse=True)[0]
+                try:
+                    with open(latest_cache, 'r') as f:
+                        cache_data = json.load(f)
+                        if 'deployedAddresses' in cache_data:
+                            addresses = cache_data['deployedAddresses']
+                            for contract_name, address in addresses.items():
+                                if 'Voting.sol:Voting' in contract_name:
+                                    VOTING_CONTRACT_ADDRESS = address
+                                    print(f"Updated Voting contract address from cache: {address}")
+                                elif 'VotingAdmin.sol:VotingAdmin' in contract_name:
+                                    ADMIN_CONTRACT_ADDRESS = address
+                                    print(f"Updated Admin contract address from cache: {address}")
+                except Exception as e:
+                    print(f"Error reading cache file: {e}")
+    
+    return VOTING_CONTRACT_ADDRESS, ADMIN_CONTRACT_ADDRESS
 
 def get_web3():
     """Get Web3 connection to Hardhat local node"""
     try:
+        # Update contract addresses before connecting
+        update_contract_addresses()
+        
         # Use the configured node URL
         print(f"Connecting to Ethereum node at: {NODE_URL}")
         web3 = Web3(Web3.HTTPProvider(NODE_URL))
@@ -54,23 +110,26 @@ def get_web3():
 
 def load_abi(abi_path):
     """Load ABI from file or use fallback minimal ABI"""
-    try:
-        # Try original path first
-        with open(abi_path, "r") as f:
-            abi = json.load(f)["abi"]
-            print(f"Loaded ABI from: {abi_path}")
-            return abi
-    except FileNotFoundError:
-        # If that fails, try with blockchain/ prefix
+    # Try multiple potential locations for the ABI file
+    possible_paths = [
+        abi_path,
+        f"blockchain/{abi_path}",
+        os.path.join("blockchain", "artifacts", "contracts", abi_path.split("/")[-2], abi_path.split("/")[-1]),
+        os.path.join("artifacts", "contracts", abi_path.split("/")[-2], abi_path.split("/")[-1])
+    ]
+    
+    for path in possible_paths:
         try:
-            with open(f"blockchain/{abi_path}", "r") as f:
+            with open(path, "r") as f:
                 abi = json.load(f)["abi"]
-                print(f"Loaded ABI from: blockchain/{abi_path}")
+                print(f"Loaded ABI from: {path}")
                 return abi
-        except FileNotFoundError:
-            # Fallback to hardcoded basic ABI if files can't be found
-            print(f"WARNING: Could not find ABI file {abi_path}. Using minimal ABI.")
-            return get_minimal_abi()
+        except (FileNotFoundError, KeyError) as e:
+            continue
+    
+    # If we've tried all paths and still don't have the ABI, use the minimal ABI
+    print(f"WARNING: Could not find ABI file {abi_path} in any expected location. Using minimal ABI.")
+    return get_minimal_abi()
 
 def get_minimal_abi():
     """Return a minimal ABI with common functions"""
@@ -177,17 +236,21 @@ def get_pool_count():
     contract = get_voting_contract()
     print("Getting total pool count")
     try:
-        return contract.functions.getPoolCount().call()
+        count = contract.functions.getPoolCount().call()
+        print(f"Pool count from blockchain: {count}")
+        return count
     except Exception as e:
         print(f"Error getting pool count: {e}")
         return 0
 
 def get_voting_contract_address():
     """Return the voting contract address"""
+    update_contract_addresses()  # Try to update before returning
     return VOTING_CONTRACT_ADDRESS
 
 def get_admin_contract_address():
     """Return the admin contract address"""
+    update_contract_addresses()  # Try to update before returning
     return ADMIN_CONTRACT_ADDRESS
 
 def create_pool(category, candidates, start_time, end_time, admin_private_key):
