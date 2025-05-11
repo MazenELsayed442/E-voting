@@ -54,6 +54,47 @@
         </div>
     </div>
     
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="alert alert-warning" role="alert">
+                <i class="bi bi-exclamation-triangle"></i> يجب إدخال المفتاح الخاص (Private Key) للمحفظة (MetaMask) الخاصة بك لإنشاء مجمع تصويت على البلوكتشين.
+            </div>
+            <div class="mb-3">
+                <label for="admin_private_key" class="form-label">المفتاح الخاص (Private Key) لمحفظة الأدمن</label>
+                <input type="password" class="form-control" id="admin_private_key" name="admin_private_key" placeholder="0x..." required>
+                <div class="invalid-feedback">
+                    يرجى إدخال المفتاح الخاص لمحفظة الأدمن (MetaMask).
+                </div>
+                <small class="text-muted">هذا المفتاح ضروري لتوقيع معاملة إنشاء مجمع التصويت على البلوكتشين.</small>
+            </div>
+            
+            <div class="accordion" id="metaMaskInstructions">
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="headingOne">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="false" aria-controls="collapseOne">
+                            كيفية الحصول على المفتاح الخاص من MetaMask
+                        </button>
+                    </h2>
+                    <div id="collapseOne" class="accordion-collapse collapse" aria-labelledby="headingOne" data-bs-parent="#metaMaskInstructions">
+                        <div class="accordion-body">
+                            <ol>
+                                <li>افتح محفظة MetaMask الخاصة بك وتأكد من تسجيل الدخول.</li>
+                                <li>اضغط على النقاط الثلاث (⋮) في الأعلى.</li>
+                                <li>اختر "الحساب" (Account Details).</li>
+                                <li>اضغط على "تصدير المفتاح الخاص" (Export Private Key).</li>
+                                <li>أدخل كلمة المرور لمحفظتك.</li>
+                                <li>انسخ المفتاح الخاص (بصيغة 0x...) وألصقه في الحقل أعلاه.</li>
+                            </ol>
+                            <div class="alert alert-danger" role="alert">
+                                <strong>تحذير أمني:</strong> لا تشارك المفتاح الخاص مع أي شخص آخر. نحن لا نقوم بتخزين المفتاح الخاص على الخادم، ويتم استخدامه فقط لتوقيع المعاملة لإنشاء مجمع التصويت.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <h4 class="mb-3">Add Candidates</h4>
     <div id="candidates-container">
         <div class="row candidate-row mb-3">
@@ -76,9 +117,9 @@
     </div>
     
     <div class="d-flex justify-content-between">
-        <button type="button" class="btn btn-outline-secondary" onclick="window.location.href='{% url 'admin_dashboard' %}'">
+        <a href="{% url 'admin_dashboard' %}" class="btn btn-outline-secondary">
             <i class="bi bi-arrow-left"></i> Back to Dashboard
-        </button>
+        </a>
         <button type="submit" class="btn btn-primary">
             <i class="bi bi-check-circle"></i> Create Voting Pool
         </button>
