@@ -533,6 +533,7 @@ def admin_dashboard(request):
     active_pools = []
     active_pools_count = 0
     total_votes = 0
+    blockchain_connected = False
     voting_contract_address = get_voting_contract_address() 
     admin_contract_address = get_admin_contract_address()
     node_status = "Not connected"
@@ -543,89 +544,93 @@ def admin_dashboard(request):
         web3 = get_web3()
         
         if web3.is_connected():
+            blockchain_connected = True
             try:
                 chain_id = web3.eth.chain_id
                 latest_block = web3.eth.block_number
                 node_status = f"Connected (Chain ID: {chain_id}, Block: {latest_block})"
             except Exception as e:
                 node_status = f"Connected but error: {str(e)}"
-        
-        # Get contract info for display
-        try:
-            voting_contract = get_voting_contract()
-            admin_contract = get_admin_contract()
-            print(f"Connected to voting contract at: {voting_contract.address}")
-            print(f"Connected to admin contract at: {admin_contract.address}")
-        except Exception as e:
-            print(f"Error getting contracts: {e}")
+                print(f"Error getting chain info: {e}")
             
-        # Get pool count from the contract
-        try:
-            pool_count = get_pool_count()
-            print(f"Found {pool_count} pool(s)")
-            
-            # Fetch pool details for all pools
-            for pool_id in range(pool_count):
-                # Get pool details from the contract
+            # Get contract info for display
+            try:
+                voting_contract = get_voting_contract()
+                admin_contract = get_admin_contract()
+                print(f"Connected to voting contract at: {voting_contract.address}")
+                print(f"Connected to admin contract at: {admin_contract.address}")
+                
+                # Get pool count from the contract
                 try:
-                    pool_details = voting_contract.functions.getPoolDetails(pool_id).call()
-                    id, category, candidates, start_time, end_time, status = pool_details
+                    pool_count = get_pool_count()
+                    print(f"Found {pool_count} pool(s)")
                     
-                    # Convert timestamps to readable dates
-                    start_date = datetime.datetime.fromtimestamp(start_time).strftime('%Y-%m-%d')
-                    end_date = datetime.datetime.fromtimestamp(end_time).strftime('%Y-%m-%d')
-                    
-                    # Add pools regardless of status, but mark status differently
-                    status_text = ["Pending", "Active", "Cancelled", "Ended"][status] if status < 4 else "Unknown"
-                    
-                    # Count votes for each candidate in this pool
-                    pool_votes = 0
-                    candidate_votes = []
-                    
-                    for candidate in candidates:
+                    # Fetch pool details for all pools
+                    for pool_id in range(pool_count):
+                        # Get pool details from the contract
                         try:
-                            votes = voting_contract.functions.getVotes(pool_id, candidate).call()
-                            pool_votes += votes
-                            candidate_votes.append({
-                                'name': candidate,
-                                'votes': votes
+                            pool_details = voting_contract.functions.getPoolDetails(pool_id).call()
+                            id, category, candidates, start_time, end_time, status = pool_details
+                            
+                            # Convert timestamps to readable dates
+                            start_date = datetime.datetime.fromtimestamp(start_time).strftime('%Y-%m-%d')
+                            end_date = datetime.datetime.fromtimestamp(end_time).strftime('%Y-%m-%d')
+                            
+                            # Add pools regardless of status, but mark status differently
+                            status_text = ["Pending", "Active", "Cancelled", "Ended"][status] if status < 4 else "Unknown"
+                            
+                            # Count votes for each candidate in this pool
+                            pool_votes = 0
+                            candidate_votes = []
+                            
+                            for candidate in candidates:
+                                try:
+                                    votes = voting_contract.functions.getVotes(pool_id, candidate).call()
+                                    pool_votes += votes
+                                    candidate_votes.append({
+                                        'name': candidate,
+                                        'votes': votes
+                                    })
+                                except Exception as e:
+                                    print(f"Error getting votes for {candidate} in pool {pool_id}: {e}")
+                                    candidate_votes.append({
+                                        'name': candidate,
+                                        'votes': 0
+                                    })
+                            
+                            # Add to active pools list
+                            active_pools.append({
+                                'id': id,
+                                'category': category,
+                                'start_time': start_date,
+                                'end_time': end_date,
+                                'votes': pool_votes,
+                                'candidates': candidate_votes,
+                                'status': status_text
                             })
+                            
+                            # Count votes
+                            total_votes += pool_votes
                         except Exception as e:
-                            print(f"Error getting votes for {candidate} in pool {pool_id}: {e}")
-                            candidate_votes.append({
-                                'name': candidate,
-                                'votes': 0
-                            })
+                            print(f"Error getting details for pool {pool_id}: {e}")
                     
-                    total_votes += pool_votes
-                    
-                    # Add pool to active pools list
-                    active_pools.append({
-                        'id': pool_id,
-                        'category': category,
-                        'start_time': start_date,
-                        'end_time': end_date,
-                        'votes': pool_votes,
-                        'candidates': candidate_votes,
-                        'status': status_text
-                    })
+                    active_pools_count = len(active_pools)
                 except Exception as e:
-                    print(f"Error getting pool {pool_id} details: {e}")
-            
-            active_pools_count = len([p for p in active_pools if p.get('status') == 'Active'])
-            
-        except Exception as e:
-            # Handle any exceptions connecting to the contract
-            messages.warning(request, f"Error fetching voting pool data: {e}")
-            print(f"Error fetching contract data: {e}")
-    
+                    print(f"Error getting pool count: {e}")
+            except Exception as e:
+                print(f"Error getting contracts: {e}")
+        else:
+            # If web3 is not connected, log the issue
+            print(f"⚠️ Web3 is not connected to node at {web3.provider}")
     except Exception as e:
-        # Handle any exceptions connecting to web3
-        messages.warning(request, f"Error connecting to blockchain: {e}")
-        print(f"Error connecting to web3: {e}")
+        print(f"⚠️ Error in blockchain connection: {e}")
     
     # Fallback to database candidates if needed
-    if not active_pools:
+    if not active_pools and blockchain_connected:
+        # If blockchain is connected but no pools found, this is 0 pools situation
+        messages.info(request, "Blockchain connected, but no voting pools created yet.")
+        active_pools_count = 0
+    elif not active_pools:
         messages.warning(request, "No blockchain data found. Using database data instead.")
         # Get candidates from the database as fallback
         categories = Candidate.objects.values_list('category', flat=True).distinct()
@@ -680,7 +685,8 @@ def admin_dashboard(request):
         'node_status': node_status,
         'voting_contract_address': voting_contract_address,
         'admin_contract_address': admin_contract_address,
-        'chain_id': chain_id
+        'chain_id': chain_id,
+        'blockchain_connected': blockchain_connected
     }
     
     return render(request, "voting/admin_dashboard.html", context)
@@ -772,15 +778,111 @@ def admin_create_pool(request):
     return render(request, "voting/admin_create_pool.html", context)
 
 @admin_required
-def admin_cancel_pool(request):
-    """Interface to request cancellation of a voting pool."""
-    # Placeholder data
+def admin_cancel_pool_list(request):
+    """List of all voting pools that can be cancelled."""
+    # Import necessary utility functions
+    from .utils.contract_utils import get_web3, get_voting_contract, get_pool_count
+    import datetime
+    
+    # Initialize default values
+    active_pools = []
+    
+    # Get web3 connection and contract
+    try:
+        web3 = get_web3()
+        
+        if web3.is_connected():
+            try:
+                # Get contract and count of pools
+                voting_contract = get_voting_contract()
+                pool_count = get_pool_count()
+                
+                # Fetch pool details for all pools
+                for pool_id in range(pool_count):
+                    try:
+                        # Get pool details
+                        pool_details = voting_contract.functions.getPoolDetails(pool_id).call()
+                        id, category, candidates, start_time, end_time, status = pool_details
+                        
+                        # Convert timestamps to readable dates
+                        start_date = datetime.datetime.fromtimestamp(start_time).strftime('%Y-%m-%d')
+                        end_date = datetime.datetime.fromtimestamp(end_time).strftime('%Y-%m-%d')
+                        
+                        # Status 1 means Active - only show active pools for cancellation
+                        if status == 1:  # Active pools only
+                            active_pools.append({
+                                'id': id,
+                                'category': category,
+                                'start_time': start_date,
+                                'end_time': end_date
+                            })
+                    except Exception as e:
+                        print(f"Error getting details for pool {pool_id}: {e}")
+            except Exception as e:
+                print(f"Error connecting to contract: {e}")
+        else:
+            messages.warning(request, "Blockchain not connected. Unable to retrieve real pool data.")
+    except Exception as e:
+        print(f"Error with web3 connection: {e}")
+    
+    # If no active pools found in blockchain, use placeholder data
+    if not active_pools:
+        # Get data from database as fallback
+        categories = Candidate.objects.values_list('category', flat=True).distinct()
+        
+        for i, category in enumerate(categories):
+            active_pools.append({
+                'id': i,
+                'category': category,
+                'start_time': 'N/A',
+                'end_time': 'N/A'
+            })
+    
     context = {
         'active_tab': 'cancel_pool',
-        'active_pools': [
-            {'id': 1, 'category': 'President', 'start_time': '2025-06-01', 'end_time': '2025-06-30'},
-            {'id': 2, 'category': 'Vice President', 'start_time': '2025-06-01', 'end_time': '2025-06-30'},
+        'active_pools': active_pools
+    }
+    return render(request, "voting/admin_cancel_pool.html", context)
+
+@admin_required
+def admin_cancel_pool(request, pool_id):
+    """Interface to request cancellation of a specific voting pool."""
+    # Get details for the specific pool being cancelled
+    from .utils.contract_utils import get_pool_details
+    import datetime
+    
+    # Try to get pool details from blockchain
+    try:
+        pool_details = get_pool_details(pool_id)
+        id, category, candidates, start_time, end_time, status = pool_details
+        
+        # Convert timestamps to readable dates
+        start_date = datetime.datetime.fromtimestamp(start_time).strftime('%Y-%m-%d')
+        end_date = datetime.datetime.fromtimestamp(end_time).strftime('%Y-%m-%d')
+        
+        pool = {
+            'id': id,
+            'category': category,
+            'start_time': start_date,
+            'end_time': end_date,
+            'status': ["Pending", "Active", "Cancelled", "Ended"][status] if status < 4 else "Unknown"
+        }
+        
+        # Only show the target pool
+        active_pools = [pool]
+        
+    except Exception as e:
+        # If blockchain access fails, use a fallback for the view
+        messages.warning(request, f"Could not retrieve blockchain data: {e}")
+        # Sample data for display
+        active_pools = [
+            {'id': pool_id, 'category': 'Unknown Pool', 'start_time': 'N/A', 'end_time': 'N/A'}
         ]
+    
+    context = {
+        'active_tab': 'cancel_pool',
+        'active_pools': active_pools,
+        'pool_id': pool_id
     }
     return render(request, "voting/admin_cancel_pool.html", context)
 
@@ -922,9 +1024,13 @@ def admin_view_proposal(request, proposal_id):
 def admin_submit_cancel_request(request):
     """API endpoint to submit a cancel request."""
     if request.method == 'POST':
+        # Get the pool ID from the form
+        pool_id = request.POST.get('pool_id')
+        reason = request.POST.get('reason')
+        
         # Process the cancel request
-        messages.success(request, "✅ Cancel request submitted successfully.")
-    return redirect('admin_cancel_pool')
+        messages.success(request, f"✅ Cancel request for pool #{pool_id} submitted successfully. Reason: {reason}")
+    return redirect('admin_dashboard')
 
 @admin_required
 def admin_submit_replace_request(request):

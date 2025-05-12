@@ -1,6 +1,7 @@
 @echo off
 REM Batch script to start Hardhat node, wait for it to listen on port 8545,
 REM and then run the deployment script in another window.
+REM This version is modified to create flag files for synchronization.
 
 SETLOCAL ENABLEDELAYEDEXPANSION
 
@@ -44,19 +45,37 @@ GOTO :WAIT_LOOP
 IF %NODE_READY% EQU 1 (
     echo Starting deployment script in a new window...
 
-    REM Run the deployment script in a second new command prompt window.
-    REM Use /c if you want the window to close automatically after deployment.
-    START "Deployment Script" cmd /k "npx hardhat run --network localhost scripts/deploy.js"
+    REM --- Start of modification as per run_all.bat instructions ---
+    echo Ensuring no old deployment flag exists...
+    IF EXIST deployment_complete.flag DEL deployment_complete.flag /Q
+    IF EXIST deployment_failed.flag DEL deployment_failed.flag /Q
+    echo.
 
-    echo Both processes initiated in separate windows.
-    echo The 'Hardhat Node' window needs to remain open.
+    echo Starting deployment script...
+    echo This will create 'deployment_complete.flag' on success or 'deployment_failed.flag' on failure.
+    REM Use /c to close window automatically and create flag file upon completion or failure.
+    START "Deployment Script" cmd /c "npx hardhat run --network localhost scripts/deploy.js && (echo Deployment successful > deployment_complete.flag) || (echo Deployment FAILED > deployment_failed.flag)"
+    REM --- End of modification ---
+
+    echo Both processes initiated. The 'Hardhat Node' window needs to remain open.
+    echo The 'Deployment Script' window will create a flag file and then close.
 )
+
+GOTO :SCRIPT_END_CHECK
 
 :WAIT_FAILED
 IF %NODE_READY% EQU 0 (
     echo Failed to detect Hardhat node starting. Please check the 'Hardhat Node' window for errors.
+    REM Optionally, create a failure flag here if the node itself fails to start,
+    REM which run_all.bat could also check for.
+    REM echo Hardhat node failed to start > node_start_failed.flag
 )
 
+:SCRIPT_END_CHECK
 echo Script finished initiating processes.
-ENDLOCAL
+
+REM The original 'pause' is now commented out for better automation with run_all.bat
+REM If you want this window to pause before run_all.bat checks the flag, uncomment it.
 pause
+
+ENDLOCAL

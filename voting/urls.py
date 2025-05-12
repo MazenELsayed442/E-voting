@@ -13,7 +13,7 @@ from .views import (
     admin_dashboard, admin_create_pool, admin_cancel_pool, admin_replace_admin,
     admin_proposals, wallet_connect, admin_view_pool, admin_view_proposal,
     admin_submit_cancel_request, admin_submit_replace_request,
-    admin_approve_proposal, admin_reject_proposal
+    admin_approve_proposal, admin_reject_proposal, admin_cancel_pool_list
 )
 
 urlpatterns = [
@@ -52,7 +52,8 @@ urlpatterns = [
     # Admin pages
     path('admin-portal/dashboard/', admin_dashboard, name='admin_dashboard'),
     path('admin-portal/create-pool/', admin_create_pool, name='admin_create_pool'),
-    path('admin-portal/cancel-pool/', admin_cancel_pool, name='admin_cancel_pool'),
+    path('admin-portal/cancel-pool/', admin_cancel_pool_list, name='admin_cancel_pool'),  # List all cancelable pools
+    path('admin-portal/cancel-pool/<int:pool_id>/', admin_cancel_pool, name='admin_cancel_pool_specific'),  # Cancel specific pool
     path('admin-portal/replace-admin/', admin_replace_admin, name='admin_replace_admin'),
     path('admin-portal/proposals/', admin_proposals, name='admin_proposals'),
     path('admin-portal/wallet-connect/', wallet_connect, name='wallet_connect'),

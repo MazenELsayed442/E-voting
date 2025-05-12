@@ -1,4 +1,6 @@
 const hre = require("hardhat");
+const fs = require("fs");
+const path = require("path");
 
 async function main() {
   try {
@@ -57,6 +59,42 @@ async function main() {
     console.log("🎉 Deployment and linking complete!");
     console.log("VotingAdmin Address:", votingAdminAddress);
     console.log("Voting Address:", votingAddress);
+    
+    // 4. Save contract addresses to a file for Django to use
+    // Create directory if it doesn't exist
+    const deploymentsDir = path.join(__dirname, "../deployment_logs");
+    if (!fs.existsSync(deploymentsDir)) {
+        fs.mkdirSync(deploymentsDir, { recursive: true });
+    }
+    
+    // Save contract addresses with timestamp for tracking multiple deployments
+    const deploymentInfo = {
+        timestamp: new Date().toISOString(),
+        network: hre.network.name,
+        chainId: await hre.ethers.provider.getNetwork().then(n => n.chainId),
+        contracts: {
+            VotingAdmin: votingAdminAddress,
+            Voting: votingAddress
+        }
+    };
+    
+    // Save to JSON file
+    const deploymentFile = path.join(deploymentsDir, `deployment_${Date.now()}.json`);
+    fs.writeFileSync(deploymentFile, JSON.stringify(deploymentInfo, null, 2));
+    console.log(`✅ Deployment info saved to: ${deploymentFile}`);
+    
+    // Create a latest.json that will always have the most recent deployment info
+    const latestFile = path.join(deploymentsDir, "latest.json");
+    fs.writeFileSync(latestFile, JSON.stringify(deploymentInfo, null, 2));
+    console.log(`✅ Latest deployment info saved to: ${latestFile}`);
+    
+    // Also create a .env.contracts file that can be used to update Django settings
+    const envContents = `
+VOTING_CONTRACT_ADDRESS=${votingAddress}
+ADMIN_CONTRACT_ADDRESS=${votingAdminAddress}
+`.trim();
+    fs.writeFileSync(path.join(__dirname, "../.env.contracts"), envContents);
+    console.log(`✅ Contract .env file created for Django integration`);
 
   } catch (error) {
     console.error("❌ DEPLOYMENT FAILED:", error);
