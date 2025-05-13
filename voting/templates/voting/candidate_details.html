@@ -235,7 +235,11 @@ async function updateVoteButtonStatus() {
     </h2>
 
     <div class="candidate-profile">
+        {% if candidate.image %}
         <img src="{{ candidate.image.url }}" alt="Candidate photo" class="candidate-image">
+        {% else %}
+        <img src="https://via.placeholder.com/150?text=No+Image" alt="No image available" class="candidate-image">
+        {% endif %}
         <h3 class="candidate-name">{{ candidate.name }}</h3>
         <p class="candidate-description">{{ candidate.description }}</p>
 

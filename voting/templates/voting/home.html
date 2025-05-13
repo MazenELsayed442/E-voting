@@ -18,126 +18,310 @@
     </div>
     {% else %}
     <!-- Regular user content -->
-    <h1 class="mb-4">Voting Results</h1>
+    <div class="header-section">
+        <h1 class="main-title">E-Voting Dashboard</h1>
+        <p class="subtitle">Secure and transparent blockchain-based voting</p>
+        
+        {% if blockchain_connected %}
+        <div class="alert alert-success mb-4 status-alert">
+            <i class="bi bi-check-circle-fill me-2"></i> Connected to blockchain voting system
+        </div>
+        {% else %}
+        <div class="alert alert-warning mb-4 status-alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i> Using local database (blockchain not connected)
+        </div>
+        {% endif %}
+    </div>
     
     <div class="row justify-content-center">
-        <!-- الرئيس -->
-        <div class="col-md-4 mb-3">
-            <div class="category-box">
-                <h2 class="category-title">President</h2>
-                <div class="mb-2"><strong>Time Remaining: <span class="countdown" id="timer1"></span></strong></div>
-                <div class="mb-3">
-                    <label>Candidate 1</label>
-                    <div class="progress">
-                        <div class="progress-bar bg-primary" style="width: 55%;">55%</div>
+        {% if active_pools %}
+            {% for pool in active_pools %}
+            <div class="col-lg-4 col-md-6 mb-4">
+                <div class="category-box">
+                    <div class="category-header">
+                        <h2 class="category-title">{{ pool.category }}</h2>
+                        <div class="time-remaining">
+                            <i class="bi bi-clock me-1"></i>
+                            <span class="countdown" id="timer{{ pool.id }}"></span>
+                        </div>
                     </div>
-                </div>
-                <div class="mb-3">
-                    <label>Candidate 2</label>
-                    <div class="progress">
-                        <div class="progress-bar bg-success" style="width: 45%;">45%</div>
+                    
+                    {% if pool.has_voted %}
+                    <div class="voted-badge">
+                        <span class="badge bg-success">
+                            <i class="bi bi-check-circle-fill me-1"></i> You have voted
+                        </span>
                     </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- نائب الرئيس -->
-        <div class="col-md-4 mb-3">
-            <div class="category-box">
-                <h2 class="category-title">Vice President</h2>
-                <div class="mb-2"><strong>Time Remaining: <span class="countdown" id="timer2"></span></strong></div>
-                <div class="mb-3">
-                    <label>Candidate A</label>
-                    <div class="progress">
-                        <div class="progress-bar bg-warning" style="width: 60%;">60%</div>
+                    {% endif %}
+                    
+                    <div class="candidates-list">
+                        {% for candidate in pool.candidates %}
+                        <div class="candidate-item">
+                            <div class="candidate-info">
+                                <span class="candidate-name">{{ candidate.name }}</span>
+                                <span class="candidate-votes">{{ candidate.votes }} votes</span>
+                            </div>
+                            <div class="vote-percentage-container">
+                                <div class="vote-percentage-number {% if candidate.percentage > 66 %}high{% elif candidate.percentage > 33 %}medium{% else %}low{% endif %}">
+                                    {{ candidate.percentage }}%
+                                </div>
+                                <div class="vote-bar-container">
+                                    <div class="vote-bar {% if candidate.percentage > 66 %}high{% elif candidate.percentage > 33 %}medium{% else %}low{% endif %}" style="width: {{ candidate.percentage }}%;"></div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
                     </div>
-                </div>
-                <div class="mb-3">
-                    <label>Candidate B</label>
-                    <div class="progress">
-                        <div class="progress-bar bg-info" style="width: 40%;">40%</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- السكرتير -->
-        <div class="col-md-4 mb-3">
-            <div class="category-box">
-                <h2 class="category-title">Secretary</h2>
-                <div class="mb-2"><strong>Time Remaining: <span class="countdown" id="timer3"></span></strong></div>
-                <div class="mb-3">
-                    <label>Candidate X</label>
-                    <div class="progress">
-                        <div class="progress-bar bg-danger" style="width: 70%;">70%</div>
-                    </div>
-                </div>
-                <div class="mb-3">
-                    <label>Candidate Y</label>
-                    <div class="progress">
-                        <div class="progress-bar bg-secondary" style="width: 30%;">30%</div>
+                    
+                    <div class="total-votes">
+                        <i class="bi bi-people-fill me-1"></i> Total votes: {{ pool.total_votes }}
                     </div>
                 </div>
             </div>
-        </div>
+            {% endfor %}
+        {% elif blockchain_connected and no_pools %}
+            <div class="col-12">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle-fill me-2"></i>
+                    Blockchain is connected, but no active voting pools have been created yet.
+                </div>
+            </div>
+        {% else %}
+            <div class="col-12">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle-fill me-2"></i>
+                    No active voting pools found. Check back later!
+                </div>
+            </div>
+        {% endif %}
     </div>
+    
     {% if user.is_authenticated and user.user_type != 'admin' %}
-    <!-- زر المشاركة -->
-    <div class="text-center mt-4">
-        <a href="{% url 'vote' %}" class="btn btn-participate">Participate</a>
+    <!-- Participation button -->
+    <div class="action-section">
+        <a href="{% url 'vote' %}" class="btn btn-participate">
+            <i class="bi bi-check-square-fill me-2"></i> Participate in Voting
+        </a>
     </div>
     {% elif not user.is_authenticated %}
-    <div class="text-center mt-4">
-        <a href="{% url 'login' %}" class="btn btn-participate">Login to Participate</a>
+    <div class="action-section">
+        <a href="{% url 'login' %}" class="btn btn-participate">
+            <i class="bi bi-box-arrow-in-right me-2"></i> Login to Participate
+        </a>
+        <a href="{% url 'register' %}" class="btn btn-register">
+            <i class="bi bi-person-plus-fill me-2"></i> Register
+        </a>
     </div>
     {% endif %}
     {% endif %}
 </div>
 
 <style>
+    .header-section {
+        margin-bottom: 2rem;
+        padding: 1.5rem;
+        background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    }
+    
+    .main-title {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #212529;
+        margin-bottom: 0.5rem;
+    }
+    
+    .subtitle {
+        font-size: 1.1rem;
+        color: #6c757d;
+        margin-bottom: 1.5rem;
+    }
+    
+    .status-alert {
+        width: 80%;
+        margin: 0 auto;
+        border-radius: 8px;
+    }
+
     .category-box {
         background: white;
-        border-radius: 10px;
-        box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
-        padding: 15px;
-        text-align: center;
+        border-radius: 12px;
+        box-shadow: 0 6px 12px rgba(0,0,0,0.08);
+        padding: 1.5rem;
+        text-align: left;
+        height: 100%;
+        transition: transform 0.3s ease;
+        border: 1px solid #f0f0f0;
+    }
+    
+    .category-box:hover {
+        transform: translateY(-5px);
+    }
+
+    .category-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid #f0f0f0;
     }
 
     .category-title {
-        font-size: 20px;
-        font-weight: bold;
+        font-size: 1.5rem;
+        font-weight: 700;
         color: #343a40;
-        margin-bottom: 10px;
+        margin: 0;
     }
-
-    .progress {
-        height: 20px;
-        font-size: 12px;
-        font-weight: bold;
-    }
-
-    .countdown {
-        font-size: 14px;
-        font-weight: bold;
+    
+    .time-remaining {
+        font-size: 0.9rem;
         color: #dc3545;
+        font-weight: 600;
+    }
+
+    .voted-badge {
+        margin-bottom: 1rem;
+    }
+    
+    .candidates-list {
+        margin-top: 1rem;
+    }
+    
+    .candidate-item {
+        margin-bottom: 1rem;
+        padding: 0.75rem;
+        border-radius: 8px;
+        background-color: #f8f9fa;
+        transition: background-color 0.2s ease;
+    }
+    
+    .candidate-item:hover {
+        background-color: #e9ecef;
+    }
+    
+    .candidate-info {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+    }
+    
+    .candidate-name {
+        font-weight: 600;
+        color: #212529;
+    }
+    
+    .candidate-votes {
+        color: #6c757d;
+        font-size: 0.9rem;
+    }
+    
+    .vote-percentage-container {
+        display: flex;
+        align-items: center;
+    }
+    
+    .vote-percentage-number {
+        font-weight: 700;
+        font-size: 1.2rem;
+        width: 50px;
+        text-align: right;
+        margin-right: 10px;
+    }
+    
+    .vote-percentage-number.high {
+        color: #28a745;
+    }
+    
+    .vote-percentage-number.medium {
+        color: #007bff;
+    }
+    
+    .vote-percentage-number.low {
+        color: #ffc107;
+    }
+    
+    .vote-bar-container {
+        flex: 1;
+        height: 8px;
+        background-color: #e9ecef;
+        border-radius: 4px;
+        overflow: hidden;
+    }
+    
+    .vote-bar {
+        height: 100%;
+        border-radius: 4px;
+    }
+    
+    .vote-bar.high {
+        background-color: #28a745;
+    }
+    
+    .vote-bar.medium {
+        background-color: #007bff;
+    }
+    
+    .vote-bar.low {
+        background-color: #ffc107;
+    }
+    
+    .total-votes {
+        text-align: center;
+        font-size: 0.9rem;
+        color: #6c757d;
+        margin-top: 1rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid #f0f0f0;
+    }
+    
+    .action-section {
+        margin-top: 2.5rem;
+        padding: 1.5rem;
+        background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+        border-radius: 12px;
+        display: inline-block;
     }
 
     .btn-participate {
-        background-color: white;
-        color: black;
-        font-size: 18px;
-        padding: 10px 25px;
+        background: linear-gradient(135deg, #0d6efd, #0a58ca);
+        color: white;
+        font-size: 1.1rem;
+        padding: 0.75rem 1.5rem;
         border-radius: 8px;
-        font-weight: bold;
+        font-weight: 600;
         text-decoration: none;
-        transition: 0.3s;
-        border: 2px solid black;
+        transition: all 0.3s ease;
+        border: none;
+        margin: 0 0.5rem;
     }
 
     .btn-participate:hover {
-        background-color: #e0e0e0;
-        color: black;
-        transform: scale(1.05);
+        background: linear-gradient(135deg, #0b5ed7, #084298);
+        color: white;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    
+    .btn-register {
+        background: linear-gradient(135deg, #6c757d, #5a6268);
+        color: white;
+        font-size: 1.1rem;
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        border: none;
+        margin: 0 0.5rem;
+    }
+    
+    .btn-register:hover {
+        background: linear-gradient(135deg, #5a6268, #4e555b);
+        color: white;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
     }
 	
     .admin-welcome {
@@ -153,6 +337,26 @@
     
     .admin-welcome .card:hover {
         transform: translateY(-5px);
+    }
+    
+    @media (max-width: 768px) {
+        .main-title {
+            font-size: 2rem;
+        }
+        
+        .candidate-info {
+            flex-direction: column;
+            text-align: center;
+        }
+        
+        .candidate-votes {
+            margin-top: 0.25rem;
+        }
+        
+        .btn-participate, .btn-register {
+            display: block;
+            margin: 0.5rem auto;
+        }
     }
 </style>
 
@@ -181,14 +385,10 @@
         updateCountdown();
     }
 
-    {% if not is_admin %}
-    let voteEndTime1 = new Date().getTime() + (3 * 24 * 60 * 60 * 1000);
-    let voteEndTime2 = new Date().getTime() + (2 * 24 * 60 * 60 * 1000);
-    let voteEndTime3 = new Date().getTime() + (4 * 24 * 60 * 60 * 1000);
-
-    startCountdown("timer1", voteEndTime1);
-    startCountdown("timer2", voteEndTime2);
-    startCountdown("timer3", voteEndTime3);
+    {% if not is_admin and active_pools %}
+        {% for pool in active_pools %}
+        startCountdown("timer{{ pool.id }}", {{ pool.end_time }} * 1000);
+        {% endfor %}
     {% endif %}
 </script>
 
