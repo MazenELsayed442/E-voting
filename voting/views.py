@@ -32,14 +32,154 @@ logger = logging.getLogger(__name__)
 
 
 def home(request):
+    """Home page view that shows voting status and results for voters"""
+    # Import blockchain utilities
+    from .utils.contract_utils import (
+        get_web3, get_voting_contract, get_pool_count, 
+        get_pool_details, get_vote_count
+    )
+    import datetime
+    
+    # Basic context - will be enhanced with blockchain data
     context = {
-        "categories": ["President", "Vice President", "Secretary"]
+        "categories": ["President", "Vice President", "Secretary"],
+        "blockchain_connected": False
     }
     
     # Add admin-specific context
     if request.user.is_authenticated and request.user.user_type == 'admin':
         context["is_admin"] = True
         context["admin_message"] = "Welcome to the administration portal. Please use the Admin Dashboard to manage the voting system."
+        return render(request, "voting/home.html", context)
+    
+    # For voters and anonymous users, fetch blockchain data
+    active_pools = []
+    blockchain_connection_failed = False
+    
+    try:
+        web3 = get_web3()
+        
+        if web3.is_connected():
+            context["blockchain_connected"] = True
+            
+            # Get contract and pool count
+            voting_contract = get_voting_contract()
+            pool_count = get_pool_count()
+            
+            # Only continue with blockchain data if there are pools
+            if pool_count > 0:
+                # Fetch all pools
+                for pool_id in range(pool_count):
+                    try:
+                        # Get pool details
+                        pool_details = voting_contract.functions.getPoolDetails(pool_id).call()
+                        id, category, candidates, start_time, end_time, status = pool_details
+                        
+                        # Only include active pools (status 1)
+                        if status == 1:  # Active
+                            # Get votes for each candidate
+                            candidate_votes = []
+                            total_votes = 0
+                            
+                            for candidate in candidates:
+                                votes = voting_contract.functions.getVotes(pool_id, candidate).call()
+                                total_votes += votes
+                                candidate_votes.append({
+                                    'name': candidate,
+                                    'votes': votes
+                                })
+                            
+                            # Calculate vote percentages
+                            if total_votes > 0:
+                                for candidate_data in candidate_votes:
+                                    candidate_data['percentage'] = round((candidate_data['votes'] / total_votes) * 100)
+                            else:
+                                # If no votes yet, show 0% for all candidates
+                                for candidate_data in candidate_votes:
+                                    candidate_data['percentage'] = 0
+                            
+                            # Get user's voting status for this pool
+                            has_voted = False
+                            if request.user.is_authenticated:
+                                try:
+                                    has_voted = voting_contract.functions.hasVotedInPool(pool_id, request.user.wallet_address).call()
+                                except:
+                                    # If wallet is not connected or other error, default to not voted
+                                    pass
+                            
+                            # Add to active pools
+                            active_pools.append({
+                                'id': id,
+                                'category': category,
+                                'candidates': candidate_votes,
+                                'start_time': start_time,
+                                'end_time': end_time,
+                                'has_voted': has_voted,
+                                'total_votes': total_votes
+                            })
+                    except Exception as e:
+                        print(f"Error getting details for pool {pool_id}: {e}")
+            else:
+                # No pools found in blockchain - clear any data before we fall back
+                context["blockchain_connected"] = True
+                context["no_pools"] = True
+                active_pools = []
+        else:
+            blockchain_connection_failed = True
+    except Exception as e:
+        print(f"Error connecting to blockchain: {e}")
+        blockchain_connection_failed = True
+    
+    # Fall back to database if:
+    # 1. Blockchain connection failed, OR
+    # 2. No active pools found in blockchain
+    if blockchain_connection_failed or not active_pools:
+        context["blockchain_connected"] = False
+        # Use database data for display
+        categories = Candidate.objects.values_list('category', flat=True).distinct()
+        
+        # Only proceed if there are categories in the database
+        if categories:
+            for category in categories:
+                candidates = Candidate.objects.filter(category=category)
+                
+                # Only proceed if there are candidates in this category
+                if candidates.exists():
+                    # Calculate total votes in this category
+                    total_votes = sum(c.votes for c in candidates)
+                    
+                    # Prepare candidate data with percentages
+                    candidate_votes = []
+                    for candidate in candidates:
+                        percentage = round((candidate.votes / total_votes) * 100) if total_votes > 0 else 0
+                        candidate_votes.append({
+                            'name': candidate.name,
+                            'votes': candidate.votes,
+                            'percentage': percentage
+                        })
+                    
+                    # Check if user has voted in this category
+                    has_voted = False
+                    if request.user.is_authenticated:
+                        has_voted = request.user.voted_candidates.filter(category=category).exists()
+                    
+                    # Dummy timestamps - 3 days from now for voting end
+                    current_time = datetime.datetime.now().timestamp()
+                    end_timestamp = current_time + (3 * 24 * 60 * 60)  # 3 days from now
+                    
+                    # Add to active pools
+                    active_pools.append({
+                        'id': len(active_pools),
+                        'category': category,
+                        'candidates': candidate_votes,
+                        'start_time': int(current_time),
+                        'end_time': int(end_timestamp),
+                        'has_voted': has_voted,
+                        'total_votes': total_votes
+                    })
+    
+    # Add active pools to context
+    context['active_pools'] = active_pools
     
     return render(request, "voting/home.html", context)
 
@@ -355,12 +495,17 @@ def get_candidate_details(request, candidate_id):
 
     
     if request.headers.get("X-Requested-With") == "XMLHttpRequest":
-        return JsonResponse({
+        response_data = {
             "name": candidate.name,
-            "image_url": candidate.image.url,
             "description": candidate.description,
             "category": candidate.category,
-        })
+        }
+        # Only add image URL if the image exists
+        if candidate.image and candidate.image.name:
+            response_data["image_url"] = candidate.image.url
+        else:
+            response_data["image_url"] = None
+        return JsonResponse(response_data)
 
     return render(request, "voting/candidate_details.html", context)
 
