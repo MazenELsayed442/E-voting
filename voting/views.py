@@ -85,7 +85,7 @@ def home(request):
                         id, category, candidates, start_time, end_time, status = pool_details
                         
                         # Only include active pools (status 1)
-                        if status == 1:  # Active
+                        if status == 1 or (status == 0 and start_time <= datetime.datetime.now().timestamp() <= end_time):  # Active or within time range
                             # Get votes for each candidate
                             candidate_votes = []
                             total_votes = 0
@@ -1209,7 +1209,7 @@ def admin_cancel_pool_list(request):
                         end_date = datetime.datetime.fromtimestamp(end_time).strftime('%Y-%m-%d')
                         
                         # Status 1 means Active - only show active pools for cancellation
-                        if status == 1:  # Active pools only
+                        if status == 1 or (status == 0 and start_time <= datetime.datetime.now().timestamp() <= end_time):  # Active or within time range pools only
                             active_pools.append({
                                 'id': id,
                                 'category': category,
