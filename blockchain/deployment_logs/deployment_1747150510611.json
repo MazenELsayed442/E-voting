@@ -1,0 +1,9 @@
+{
+  "timestamp": "2025-05-13T15:35:10.610Z",
+  "network": "localhost",
+  "chainId": 31337,
+  "contracts": {
+    "VotingAdmin": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+    "Voting": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9"
+  }
+}

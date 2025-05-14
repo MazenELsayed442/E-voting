@@ -28,13 +28,11 @@
                     </div>
                     
                     <div class="row mb-3">
-                        <div class="col-md-4 fw-bold">Start Date:</div>
-                        <div class="col-md-8" id="start-date"></div>
-                    </div>
-                    
-                    <div class="row mb-3">
-                        <div class="col-md-4 fw-bold">End Date:</div>
-                        <div class="col-md-8" id="end-date"></div>
+                        <div class="col-md-4 fw-bold">Voting Period:</div>
+                        <div class="col-md-8">
+                            <div id="voting-period-info"></div>
+                            <small class="text-muted">Voting will start 5 minutes after creation and run for 5 days</small>
+                        </div>
                     </div>
                     
                     <div class="row mb-3">
@@ -101,8 +99,9 @@
         const startDate = new Date(startTimestamp * 1000);
         const endDate = new Date(endTimestamp * 1000);
         
-        document.getElementById('start-date').textContent = startDate.toLocaleDateString();
-        document.getElementById('end-date').textContent = endDate.toLocaleDateString();
+        // Display the voting period in clear format
+        const votingPeriodInfo = document.getElementById('voting-period-info');
+        votingPeriodInfo.innerHTML = `${startDate.toLocaleString()} to ${endDate.toLocaleString()}`;
         
         // Confirm button
         const confirmBtn = document.getElementById('confirm-btn');
@@ -153,7 +152,7 @@
                 return;
             }
             
-            updateStatus('Preparing transaction...');
+            updateStatus('Preparing transaction... This will create a voting pool that starts in 5 minutes and runs for 5 days.');
             
             // Basic ABI for createPool function
             const contractABI = [{
@@ -173,10 +172,18 @@
             
             updateStatus('Sending transaction. Please sign it in MetaMask...');
             
-            // Send transaction
-            const tx = await contract.createPool(category, candidates, startTimestamp, endTimestamp);
+            // Send the transaction with a high gas limit to avoid estimation issues
+            const tx = await contract.createPool(
+                category, 
+                candidates, 
+                startTimestamp, 
+                endTimestamp,
+                { 
+                    gasLimit: 10000000  // Set high gas limit to avoid estimation errors
+                }
+            );
             
-            updateStatus('Transaction sent successfully. Waiting for confirmation...');
+            updateStatus('Transaction sent successfully! Waiting for confirmation...');
             
             // Wait for confirmation
             const receipt = await tx.wait();
@@ -194,7 +201,7 @@
             
         } catch (error) {
             console.error(error);
-            updateStatus('Error: ' + error.message, true);
+            updateStatus('Error: ' + error.message + '<br><br>Please try using a date in the future instead of today.', true);
         }
     }
 </script>

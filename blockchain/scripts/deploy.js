@@ -71,7 +71,7 @@ async function main() {
     const deploymentInfo = {
         timestamp: new Date().toISOString(),
         network: hre.network.name,
-        chainId: await hre.ethers.provider.getNetwork().then(n => n.chainId),
+        chainId: Number(await hre.ethers.provider.getNetwork().then(n => n.chainId)),
         contracts: {
             VotingAdmin: votingAdminAddress,
             Voting: votingAddress

@@ -17,30 +17,8 @@
                 </div>
             </div>
             
-            <div class="mb-3">
-                <label for="start_date" class="form-label">Start Date</label>
-                <input type="date" class="form-control" id="start_date" name="start_date" required>
-                <div class="invalid-feedback">
-                    Please select a start date.
-                </div>
-            </div>
-            
-            <div class="mb-3">
-                <label for="end_date" class="form-label">End Date</label>
-                <input type="date" class="form-control" id="end_date" name="end_date" required>
-                <div class="invalid-feedback">
-                    Please select an end date.
-                </div>
-            </div>
-        </div>
-        
-        <div class="col-md-6">
-            <div class="mb-3">
-                <label for="description" class="form-label">Description</label>
-                <textarea class="form-control" id="description" name="description" rows="5" required></textarea>
-                <div class="invalid-feedback">
-                    Please provide a description.
-                </div>
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> Voting will automatically start after creation and run for 5 days.
             </div>
             
             <div class="mb-3">
@@ -52,46 +30,45 @@
                 <small class="text-muted">Minimum number of admins required to approve requests.</small>
             </div>
         </div>
+        
+        <div class="col-md-6">
+            <div class="mb-3">
+                <label for="description" class="form-label">Description</label>
+                <textarea class="form-control" id="description" name="description" rows="5" required></textarea>
+                <div class="invalid-feedback">
+                    Please provide a description.
+                </div>
+            </div>
+        </div>
     </div>
     
     <div class="row mb-4">
         <div class="col-md-12">
-            <div class="alert alert-warning" role="alert">
-                <i class="bi bi-exclamation-triangle"></i> يجب إدخال المفتاح الخاص (Private Key) للمحفظة (MetaMask) الخاصة بك لإنشاء مجمع تصويت على البلوكتشين.
-            </div>
-            <div class="mb-3">
-                <label for="admin_private_key" class="form-label">المفتاح الخاص (Private Key) لمحفظة الأدمن</label>
-                <input type="password" class="form-control" id="admin_private_key" name="admin_private_key" placeholder="0x..." required>
-                <div class="invalid-feedback">
-                    يرجى إدخال المفتاح الخاص لمحفظة الأدمن (MetaMask).
-                </div>
-                <small class="text-muted">هذا المفتاح ضروري لتوقيع معاملة إنشاء مجمع التصويت على البلوكتشين.</small>
+            <div class="alert alert-info" role="alert">
+                <i class="bi bi-info-circle"></i> Your connected MetaMask account will be used to create a voting pool on the blockchain.
             </div>
             
-            <div class="accordion" id="metaMaskInstructions">
-                <div class="accordion-item">
-                    <h2 class="accordion-header" id="headingOne">
-                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="false" aria-controls="collapseOne">
-                            كيفية الحصول على المفتاح الخاص من MetaMask
-                        </button>
-                    </h2>
-                    <div id="collapseOne" class="accordion-collapse collapse" aria-labelledby="headingOne" data-bs-parent="#metaMaskInstructions">
-                        <div class="accordion-body">
-                            <ol>
-                                <li>افتح محفظة MetaMask الخاصة بك وتأكد من تسجيل الدخول.</li>
-                                <li>اضغط على النقاط الثلاث (⋮) في الأعلى.</li>
-                                <li>اختر "الحساب" (Account Details).</li>
-                                <li>اضغط على "تصدير المفتاح الخاص" (Export Private Key).</li>
-                                <li>أدخل كلمة المرور لمحفظتك.</li>
-                                <li>انسخ المفتاح الخاص (بصيغة 0x...) وألصقه في الحقل أعلاه.</li>
-                            </ol>
-                            <div class="alert alert-danger" role="alert">
-                                <strong>تحذير أمني:</strong> لا تشارك المفتاح الخاص مع أي شخص آخر. نحن لا نقوم بتخزين المفتاح الخاص على الخادم، ويتم استخدامه فقط لتوقيع المعاملة لإنشاء مجمع التصويت.
-                            </div>
-                        </div>
+            {% if user.wallet_address %}
+            <div class="wallet-info mb-3">
+                <label class="form-label">Connected MetaMask Wallet:</label>
+                <div class="input-group">
+                    <input type="text" class="form-control" value="{{ user.wallet_address }}" readonly>
+                    <div class="input-group-text bg-success text-white">
+                        <i class="bi bi-check-circle-fill"></i> Connected
                     </div>
                 </div>
+                <small class="text-muted">This wallet will be used to sign the transaction for creating a voting pool on the blockchain.</small>
             </div>
+            {% else %}
+            <div class="alert alert-warning" role="alert">
+                <i class="bi bi-exclamation-triangle"></i> You must connect a MetaMask wallet first to create a voting pool.
+                <div class="mt-2">
+                    <a href="{% url 'wallet_connect' %}" class="btn btn-primary btn-sm">
+                        <i class="bi bi-wallet2 me-1"></i> Connect Wallet
+                    </a>
+                </div>
+            </div>
+            {% endif %}
         </div>
     </div>
     
@@ -120,7 +97,7 @@
         <a href="{% url 'admin_dashboard' %}" class="btn btn-outline-secondary">
             <i class="bi bi-arrow-left"></i> Back to Dashboard
         </a>
-        <button type="submit" class="btn btn-primary">
+        <button type="submit" class="btn btn-primary" {% if not user.wallet_address %}disabled{% endif %}>
             <i class="bi bi-check-circle"></i> Create Voting Pool
         </button>
     </div>
