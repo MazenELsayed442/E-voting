@@ -184,7 +184,11 @@ contract Voting {
 
         VotingPool storage pool = votingPools[_poolId];
         require(pool.id == _poolId || (_poolId == 0 && bytes(pool.category).length != 0), "Voting: Pool does not exist"); // Check pool exists
-        require(pool.status == PoolStatus.Active, "Voting: Voting pool is not active");
+        require(
+            (pool.status == PoolStatus.Active) || 
+            (pool.status == PoolStatus.Pending && block.timestamp >= pool.startTime && block.timestamp < pool.endTime),
+            "Voting: Voting pool is not active"
+        );
         require(block.timestamp >= pool.startTime, "Voting: Voting period has not started yet");
         require(block.timestamp < pool.endTime, "Voting: Voting period has ended");
         require(!pool.hasVoted[msg.sender], "Voting: Address has already voted in this pool");
