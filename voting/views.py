@@ -26,7 +26,7 @@ from django.views.decorators.csrf import csrf_exempt
 # Local application imports
 from .forms import CustomUserCreationForm, LoginForm
 from .models import Candidate, CustomUser, Voter
-from .utils.contract_utils import get_vote_count, submit_vote, get_web3, get_contract, get_pool_details, get_pool_count, get_voting_contract, get_admin_contract, get_voting_contract_address, get_admin_contract_address, create_pool
+from .utils.contract_utils import get_vote_count, submit_vote, get_web3, get_contract, get_pool_details, get_pool_count, get_voting_contract, get_admin_contract, get_voting_contract_address, get_admin_contract_address
 from .utils.blockchain_monitor import BlockchainMonitor
 
 logger = logging.getLogger(__name__)
@@ -1097,7 +1097,6 @@ def admin_create_pool(request):
             # Get form data
             category = request.POST.get('category')
             description = request.POST.get('description')
-            min_admins = int(request.POST.get('min_admins', 3))
             
             # Get candidate data
             candidate_names = request.POST.getlist('candidate_name[]')
