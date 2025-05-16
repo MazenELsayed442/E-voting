@@ -13,7 +13,7 @@
 // You NEED to get the specific Pool ID for the current voting context
 // This should likely be passed from your Django template, similar to CONTRACT_ADDRESS/ABI
 // Example: const POOL_ID = {{ pool_id_from_django_context }};
-const POOL_ID = 0;
+const POOL_ID = 2;
 
 async function updateVoteButtonStatus() {
     if (typeof window.ethereum === 'undefined') return;

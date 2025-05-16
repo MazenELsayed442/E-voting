@@ -17,8 +17,21 @@
                 </div>
             </div>
             
-            <div class="alert alert-info">
-                <i class="bi bi-info-circle"></i> Voting will automatically start after creation and run for 5 days.
+            <div class="mb-3">
+                <label for="start_datetime" class="form-label">Start Date & Time</label>
+                <input type="datetime-local" class="form-control" id="start_datetime" name="start_datetime" required>
+                <div class="invalid-feedback">
+                    Please select a start date and time.
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label for="end_datetime" class="form-label">End Date & Time</label>
+                <input type="datetime-local" class="form-control" id="end_datetime" name="end_datetime" required>
+                <div class="invalid-feedback">
+                    Please select an end date and time.
+                </div>
+                <small class="text-muted">The voting period must be at least 1 hour.</small>
             </div>
         </div>
         
@@ -142,6 +155,32 @@
             var row = this.closest('.candidate-row');
             row.parentNode.removeChild(row);
         });
+    });
+    
+    // Initialize datetime inputs with default values
+    document.addEventListener('DOMContentLoaded', function() {
+        // Set default start time (current time + 2 minutes)
+        const startDate = new Date();
+        startDate.setMinutes(startDate.getMinutes() + 2);
+        startDate.setSeconds(0);
+        startDate.setMilliseconds(0);
+        
+        // Set default end time (current time + 5 days)
+        const endDate = new Date();
+        endDate.setDate(endDate.getDate() + 5);
+        endDate.setHours(23);
+        endDate.setMinutes(59);
+        endDate.setSeconds(59);
+        endDate.setMilliseconds(0);
+        
+        // Format dates for datetime-local input
+        const formatDateForInput = (date) => {
+            return date.toISOString().slice(0, 16); // Format as YYYY-MM-DDTHH:MM
+        };
+        
+        // Set values to inputs
+        document.getElementById('start_datetime').value = formatDateForInput(startDate);
+        document.getElementById('end_datetime').value = formatDateForInput(endDate);
     });
 </script>
 {% endblock %} 

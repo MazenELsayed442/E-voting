@@ -1102,6 +1102,10 @@ def admin_create_pool(request):
             candidate_names = request.POST.getlist('candidate_name[]')
             candidate_descriptions = request.POST.getlist('candidate_description[]')
             
+            # Get datetime fields
+            start_datetime_str = request.POST.get('start_datetime')
+            end_datetime_str = request.POST.get('end_datetime')
+            
             # Validate data
             if not category:
                 messages.error(request, "Please provide a category name")
@@ -1110,21 +1114,40 @@ def admin_create_pool(request):
             if len(candidate_names) < 2:
                 messages.error(request, "At least two candidates are required")
                 return redirect('admin_create_pool')
+                
+            if not start_datetime_str or not end_datetime_str:
+                messages.error(request, "Start and end dates are required")
+                return redirect('admin_create_pool')
             
-            # Set default dates (start now, end in 5 days)
-            now = datetime.datetime.now()
-            
-            # Start time - add 5 minutes to allow for transaction confirmation
-            start_dt = now + datetime.timedelta(minutes=2)  
-            start_dt = start_dt.replace(second=0, microsecond=0)
-            
-            # End time - 5 days from now
-            end_dt = now + datetime.timedelta(days=5)
-            end_dt = end_dt.replace(hour=23, minute=59, second=59, microsecond=0)
-            
-            # Convert to timestamps
-            start_timestamp = int(start_dt.timestamp())
-            end_timestamp = int(end_dt.timestamp())
+            # Parse datetime strings to datetime objects
+            try:
+                start_dt = datetime.datetime.fromisoformat(start_datetime_str)
+                end_dt = datetime.datetime.fromisoformat(end_datetime_str)
+                
+                # Ensure end time is after start time
+                if end_dt <= start_dt:
+                    messages.error(request, "End time must be after start time")
+                    return redirect('admin_create_pool')
+                
+                # Ensure minimum voting period (1 hour)
+                min_duration = datetime.timedelta(hours=1)
+                if end_dt - start_dt < min_duration:
+                    messages.error(request, "Voting period must be at least 1 hour")
+                    return redirect('admin_create_pool')
+                
+                # Convert to timestamps
+                start_timestamp = int(start_dt.timestamp())
+                end_timestamp = int(end_dt.timestamp())
+                
+                # Ensure start time is in the future
+                now = datetime.datetime.now()
+                if start_dt < now:
+                    messages.error(request, "Start time must be in the future")
+                    return redirect('admin_create_pool')
+                
+            except ValueError:
+                messages.error(request, "Invalid date format")
+                return redirect('admin_create_pool')
             
             # Use connected wallet via Web3 instead of private key
             web3 = get_web3()
