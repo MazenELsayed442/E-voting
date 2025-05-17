@@ -2,7 +2,7 @@
 
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import CustomUser, Candidate, Voter # Import your models from this app
+from .models import CustomUser, Candidate, Voter, Category, PoolCancellationRequest # Import your models from this app
 
 # --- Admin Configuration for CustomUser ---
 @admin.register(CustomUser) # Use decorator for cleaner registration
@@ -68,3 +68,31 @@ class VoterAdmin(admin.ModelAdmin):
     @admin.display(description='Wallet Address')
     def get_wallet_address(self, obj):
         return getattr(obj, 'wallet_address', 'N/A') # Example
+
+# Register Category with admin
+@admin.register(Category)
+class CategoryAdmin(admin.ModelAdmin):
+    list_display = ('name',)
+    search_fields = ('name',)
+
+# Register PoolCancellationRequest with admin
+@admin.register(PoolCancellationRequest)
+class PoolCancellationRequestAdmin(admin.ModelAdmin):
+    list_display = ('pool_id', 'initiator', 'approver', 'status', 'created_at', 'updated_at')
+    list_filter = ('status', 'created_at')
+    search_fields = ('pool_id', 'initiator__username', 'initiator__email', 'approver__username', 'approver__email')
+    readonly_fields = ('created_at', 'updated_at', 'transaction_hash')
+    fieldsets = (
+        ('Request Information', {
+            'fields': ('pool_id', 'reason', 'status')
+        }),
+        ('Admin Information', {
+            'fields': ('initiator', 'approver')
+        }),
+        ('Blockchain Information', {
+            'fields': ('transaction_hash',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at')
+        }),
+    )

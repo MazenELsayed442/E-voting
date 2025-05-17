@@ -1,0 +1,219 @@
+{% extends 'voting/base.html' %}
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">Pending Pool Cancellation Requests</h2>
+    
+    <div class="row mb-4">
+        <div class="col-12">
+            <a href="{% url 'admin_dashboard' %}" class="btn btn-outline-secondary mb-3">
+                <i class="bi bi-arrow-left"></i> Back to Dashboard
+            </a>
+            <a href="{% url 'admin_cancel_pool' %}" class="btn btn-outline-primary mb-3 ml-2">
+                <i class="bi bi-plus"></i> Create New Cancel Request
+            </a>
+        </div>
+    </div>
+    
+    <!-- Pending Requests Section -->
+    <div class="card mb-4">
+        <div class="card-header bg-warning text-white">
+            <h4>Pending Requests (Waiting for Approval)</h4>
+        </div>
+        <div class="card-body">
+            {% if pending_requests %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Pool ID</th>
+                                <th>Initiator</th>
+                                <th>Reason</th>
+                                <th>Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for request in pending_requests %}
+                                <tr>
+                                    <td>{{ request.pool_id }}</td>
+                                    <td>{{ request.initiator.username }} ({{ request.initiator.email }})</td>
+                                    <td>{{ request.reason|truncatechars:50 }}</td>
+                                    <td>{{ request.created_at|date:"M d, Y H:i" }}</td>
+                                    <td>
+                                        {% if request.initiator != user %}
+                                            <form method="POST" action="{% url 'admin_approve_cancellation' request.id %}" class="d-inline">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-sm btn-success">Approve</button>
+                                            </form>
+                                            <form method="POST" action="{% url 'admin_reject_cancellation' request.id %}" class="d-inline">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-sm btn-danger">Reject</button>
+                                            </form>
+                                        {% else %}
+                                            <span class="badge badge-info">Awaiting another admin</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-info">No pending cancellation requests.</div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Approved Requests Section -->
+    <div class="card mb-4">
+        <div class="card-header bg-success text-white">
+            <h4>Approved Requests (Ready for Execution)</h4>
+        </div>
+        <div class="card-body">
+            {% if approved_requests %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Pool ID</th>
+                                <th>Initiator</th>
+                                <th>Approver</th>
+                                <th>Reason</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for request in approved_requests %}
+                                <tr>
+                                    <td>{{ request.pool_id }}</td>
+                                    <td>{{ request.initiator.username }}</td>
+                                    <td>{{ request.approver.username }}</td>
+                                    <td>{{ request.reason|truncatechars:50 }}</td>
+                                    <td>
+                                        <span class="badge badge-success">Approved</span>
+                                        <button class="btn btn-sm btn-primary mt-1" onclick="executeBlockchainCancellation('{{ request.id }}', '{{ request.pool_id }}')">
+                                            Execute via MetaMask
+                                        </button>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-info">No approved requests waiting for execution.</div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Recently Executed Requests Section -->
+    <div class="card">
+        <div class="card-header bg-info text-white">
+            <h4>Recently Executed Cancellations</h4>
+        </div>
+        <div class="card-body">
+            {% if executed_requests %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Pool ID</th>
+                                <th>Initiator</th>
+                                <th>Approver</th>
+                                <th>Date Executed</th>
+                                <th>Transaction</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for request in executed_requests %}
+                                <tr>
+                                    <td>{{ request.pool_id }}</td>
+                                    <td>{{ request.initiator.username }}</td>
+                                    <td>{{ request.approver.username }}</td>
+                                    <td>{{ request.updated_at|date:"M d, Y H:i" }}</td>
+                                    <td>
+                                        {% if request.transaction_hash %}
+                                            <a href="https://etherscan.io/tx/{{ request.transaction_hash }}" target="_blank" class="btn btn-sm btn-secondary">
+                                                View Transaction
+                                            </a>
+                                        {% else %}
+                                            <span class="text-muted">No transaction hash</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-info">No executed cancellations yet.</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+<script>
+    // Function to execute pool cancellation on blockchain using MetaMask
+    async function executeBlockchainCancellation(requestId, poolId) {
+        if (typeof window.ethereum === 'undefined') {
+            alert('MetaMask is not installed. Please install MetaMask to execute blockchain transactions.');
+            return;
+        }
+        
+        try {
+            const provider = new ethers.providers.Web3Provider(window.ethereum);
+            await provider.send("eth_requestAccounts", []);
+            const signer = provider.getSigner();
+            
+            // Get contract ABI and address - these should be provided by your backend
+            const ADMIN_CONTRACT_ADDRESS = "{{ admin_contract_address }}";
+            const ADMIN_CONTRACT_ABI = JSON.parse('{{ admin_contract_abi|escapejs }}');
+            
+            const contract = new ethers.Contract(ADMIN_CONTRACT_ADDRESS, ADMIN_CONTRACT_ABI, signer);
+            
+            // Call the cancelPool function
+            const tx = await contract.cancelPool(poolId);
+            alert('Transaction submitted. Waiting for confirmation...');
+            
+            // Wait for transaction to be mined
+            const receipt = await tx.wait();
+            
+            // Update the UI or send the transaction hash to the backend
+            await updateTransactionHash(requestId, receipt.transactionHash);
+            
+            alert('Pool cancellation executed successfully!');
+            window.location.reload();
+            
+        } catch (error) {
+            console.error('Error executing cancellation:', error);
+            alert('Error executing cancellation: ' + error.message);
+        }
+    }
+    
+    // Function to update transaction hash in the backend
+    async function updateTransactionHash(requestId, txHash) {
+        try {
+            const response = await fetch(`/update-transaction-hash/${requestId}/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({
+                    transaction_hash: txHash
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to update transaction hash');
+            }
+            
+            return await response.json();
+        } catch (error) {
+            console.error('Error updating transaction hash:', error);
+            throw error;
+        }
+    }
+</script>
+{% endblock %} 

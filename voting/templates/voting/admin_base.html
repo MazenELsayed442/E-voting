@@ -16,6 +16,9 @@
                 <a href="{% url 'admin_cancel_pool' %}" class="list-group-item list-group-item-action {% if active_tab == 'cancel_pool' %}active{% endif %}">
                     <i class="bi bi-x-circle me-2"></i> Cancel Voting Pool
                 </a>
+                <a href="{% url 'admin_pending_cancellations' %}" class="list-group-item list-group-item-action {% if active_tab == 'pending_cancellations' %}active{% endif %}">
+                    <i class="bi bi-clock-history me-2"></i> Pending Cancellations
+                </a>
                 <a href="{% url 'admin_replace_admin' %}" class="list-group-item list-group-item-action {% if active_tab == 'replace_admin' %}active{% endif %}">
                     <i class="bi bi-people me-2"></i> Replace Admin
                 </a>

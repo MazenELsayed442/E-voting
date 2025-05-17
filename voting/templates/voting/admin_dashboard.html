@@ -90,6 +90,9 @@
                 <h5 class="card-title">Pending Proposals</h5>
                 <div class="stat-number">{{ pending_proposals }}</div>
                 <div class="stat-icon"><i class="bi bi-hourglass-split"></i></div>
+                {% if pending_proposals > 0 %}
+                <a href="{% url 'admin_pending_cancellations' %}" class="btn btn-sm btn-primary mt-2">View Requests</a>
+                {% endif %}
             </div>
         </div>
     </div>

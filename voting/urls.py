@@ -13,7 +13,11 @@ from .views import (
     admin_dashboard, admin_create_pool, admin_cancel_pool, admin_replace_admin,
     admin_proposals, wallet_connect, admin_view_pool, admin_view_proposal,
     admin_submit_cancel_request, admin_submit_replace_request,
-    admin_approve_proposal, admin_reject_proposal, admin_cancel_pool_list
+    admin_approve_proposal, admin_reject_proposal, admin_cancel_pool_list,
+    
+    # New cancellation approval flow
+    admin_pending_cancellations, admin_approve_cancellation, admin_reject_cancellation,
+    update_transaction_hash
 )
 
 urlpatterns = [
@@ -65,6 +69,12 @@ urlpatterns = [
     path('admin-portal/api/submit-replace-request/', admin_submit_replace_request, name='admin_submit_replace_request'),
     path('admin-portal/api/approve-proposal/', admin_approve_proposal, name='admin_approve_proposal'),
     path('admin-portal/api/reject-proposal/', admin_reject_proposal, name='admin_reject_proposal'),
+    
+    # Pool cancellation approval flow
+    path('admin-portal/pending-cancellations/', admin_pending_cancellations, name='admin_pending_cancellations'),
+    path('admin-portal/approve-cancellation/<int:request_id>/', admin_approve_cancellation, name='admin_approve_cancellation'),
+    path('admin-portal/reject-cancellation/<int:request_id>/', admin_reject_cancellation, name='admin_reject_cancellation'),
+    path('update-transaction-hash/<int:request_id>/', update_transaction_hash, name='update_transaction_hash'),
 ]
 
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
