@@ -202,7 +202,7 @@
             const receipt = await tx.wait();
             
             // Save reason to backend for reference
-            await saveReasonToBackend(poolId, reason);
+            await saveReasonToBackend(poolId, reason, receipt.transactionHash);
             
             // Transaction success
             updateStatus('Pool cancellation proposal submitted successfully!<br>Transaction Hash: ' + receipt.transactionHash, false, true);
@@ -222,7 +222,7 @@
     }
     
     // Function to save the reason to backend
-    async function saveReasonToBackend(poolId, reason) {
+    async function saveReasonToBackend(poolId, reason, txHash = '') {
         try {
             const response = await fetch('{% url "admin_submit_cancel_request" %}', {
                 method: 'POST',
@@ -230,7 +230,7 @@
                     'Content-Type': 'application/x-www-form-urlencoded',
                     'X-CSRFToken': '{{ csrf_token }}'
                 },
-                body: `pool_id=${poolId}&reason=${encodeURIComponent(reason)}`
+                body: `pool_id=${poolId}&reason=${encodeURIComponent(reason)}&transaction_hash=${txHash}`
             });
             
             if (!response.ok) {

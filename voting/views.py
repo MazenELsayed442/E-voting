@@ -22,10 +22,11 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render, get_object_or_404
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
+from datetime import datetime, timedelta
 
 # Local application imports
 from .forms import CustomUserCreationForm, LoginForm
-from .models import Candidate, CustomUser, Voter
+from .models import Candidate, CustomUser, Voter, CancellationRequest
 from .utils.contract_utils import get_vote_count, submit_vote, get_web3, get_contract, get_pool_details, get_pool_count, get_voting_contract, get_admin_contract, get_voting_contract_address, get_admin_contract_address
 from .utils.blockchain_monitor import BlockchainMonitor
 
@@ -1336,18 +1337,47 @@ def admin_replace_admin(request):
 @admin_required
 def admin_proposals(request):
     """Page to review and approve/reject proposals."""
-    # Placeholder data
+    # استخراج طلبات الإلغاء من قاعدة البيانات
+    from .models import CancellationRequest
+    
+    # الحصول على جميع طلبات الإلغاء مرتبة من الأحدث إلى الأقدم
+    cancellation_requests = CancellationRequest.objects.all().order_by('-created_at')
+    
+    # الاستعلام عن المقترحات المنفذة في آخر 7 أيام
+    seven_days_ago = datetime.now() - timedelta(days=7)
+    executed_proposals = CancellationRequest.objects.filter(
+        is_executed=True, 
+        created_at__gte=seven_days_ago
+    ).order_by('-created_at')
+    
+    proposals = []
+    
+    # تحويل طلبات الإلغاء إلى تنسيق المقترحات
+    for req in cancellation_requests:
+        proposals.append({
+            'id': req.id, 
+            'type': 'Cancel Pool', 
+            'requester': req.requested_by.email,
+            'created_at': req.created_at.strftime('%Y-%m-%d'),
+            'details': f'Request to cancel pool #{req.pool_id}. Reason: {req.reason}',
+            'status': 'Executed' if req.is_executed else 'Pending'
+        })
+    
+    # إذا لم توجد طلبات، يمكن إضافة مثال توضيحي (اختياري)
+    if not proposals:
+        proposals = [{
+            'id': 0, 
+            'type': 'Cancel Pool (Example)', 
+            'requester': 'No active requests',
+            'created_at': '-----',
+            'details': 'No cancellation requests found.',
+            'status': 'Pending'
+        }]
+    
     context = {
         'active_tab': 'proposals',
-        'proposals': [
-            {
-                'id': 1, 
-                'type': 'Cancel Pool', 
-                'requester': 'admin@example.com',
-                'created_at': '2025-05-28',
-                'details': 'Request to cancel President voting pool due to technical issues.'
-            },
-        ]
+        'proposals': proposals,
+        'executed_proposals': executed_proposals.exists()
     }
     return render(request, "voting/admin_proposals.html", context)
 
@@ -1446,19 +1476,72 @@ def admin_view_pool(request, pool_id):
 @admin_required
 def admin_view_proposal(request, proposal_id):
     """View details of a specific proposal."""
-    # Placeholder data
-    proposal = {
-        'id': proposal_id,
-        'type': 'Cancel Pool',
-        'requester': 'admin@example.com',
-        'created_at': '2025-05-28',
-        'details': 'Request to cancel President voting pool due to technical issues.',
-        'status': 'Pending'
-    }
-    context = {
-        'active_tab': 'proposals',
-        'proposal': proposal
-    }
+    try:
+        # جلب طلب الإلغاء من قاعدة البيانات
+        cancellation_request = CancellationRequest.objects.get(id=proposal_id)
+        
+        # محاولة الحصول على معلومات الاستطلاع من البلوكتشين
+        pool_info = {}
+        try:
+            from .utils.contract_utils import get_pool_details, get_voting_contract, get_admin_contract_address
+            import datetime
+            
+            # جلب بيانات الاستطلاع من البلوكتشين
+            pool_details = get_pool_details(cancellation_request.pool_id)
+            if pool_details:
+                id, category, candidates, start_time, end_time, status = pool_details
+                
+                # تحويل الطوابع الزمنية إلى تواريخ مقروءة
+                start_date = datetime.datetime.fromtimestamp(start_time).strftime('%Y-%m-%d')
+                end_date = datetime.datetime.fromtimestamp(end_time).strftime('%Y-%m-%d')
+                
+                # حساب عدد الأصوات (مثال)
+                votes = 250  # في تطبيق حقيقي، يجب حساب هذا من البلوكتشين
+                
+                pool_info = {
+                    'category': category,
+                    'start_date': start_date,
+                    'end_date': end_date,
+                    'votes': votes
+                }
+        except Exception as e:
+            print(f"Error getting pool details from blockchain: {e}")
+            pool_info = {
+                'category': 'Unknown',
+                'start_date': 'N/A',
+                'end_date': 'N/A',
+                'votes': 0
+            }
+
+        # إعداد بيانات المقترح للعرض
+        proposal = {
+            'id': cancellation_request.id,
+            'type': 'Cancel Pool',
+            'requester': cancellation_request.requested_by.email,
+            'created_at': cancellation_request.created_at.strftime('%Y-%m-%d'),
+            'details': cancellation_request.reason,
+            'status': 'Executed' if cancellation_request.is_executed else 'Pending',
+            'pool_id': cancellation_request.pool_id,
+            'pool_info': pool_info
+        }
+        
+        # الحصول على عنوان عقد المسؤول للبلوكتشين
+        admin_contract_address = get_admin_contract_address()
+        
+        context = {
+            'active_tab': 'proposals',
+            'proposal': proposal,
+            'admin_contract_address': admin_contract_address
+        }
+        
+    except CancellationRequest.DoesNotExist:
+        messages.error(request, f"Proposal #{proposal_id} not found.")
+        return redirect('admin_proposals')
+    except Exception as e:
+        print(f"Error viewing proposal: {e}")
+        messages.error(request, f"Error viewing proposal: {str(e)}")
+        return redirect('admin_proposals')
+    
     return render(request, "voting/admin_view_proposal.html", context)
 
 # Admin API endpoints (These would be AJAX endpoints in a real implementation)
@@ -1469,16 +1552,25 @@ def admin_submit_cancel_request(request):
         # Get the pool ID from the form
         pool_id = request.POST.get('pool_id')
         reason = request.POST.get('reason')
+        transaction_hash = request.POST.get('transaction_hash')
         
         try:
             # Save the cancel request to the database for record keeping
             from .models import CancellationRequest
-            CancellationRequest.objects.create(
+            request_obj = CancellationRequest.objects.create(
                 pool_id=pool_id,
                 reason=reason,
-                requested_by=request.user
+                requested_by=request.user,
+                transaction_hash=transaction_hash
             )
+            
+            # إذا كان هناك هاش معاملة، فهذا يعني أن المعاملة تمت بنجاح
+            if transaction_hash:
+                request_obj.is_executed = True
+                request_obj.save()
+            
             messages.success(request, f"✅ Cancel request for pool #{pool_id} submitted successfully. Reason: {reason}")
+            
         except Exception as e:
             print(f"Failed to record cancellation request: {e}")
             messages.warning(request, f"Transaction was sent to blockchain but we couldn't record it in our database: {e}")
@@ -1497,8 +1589,30 @@ def admin_submit_replace_request(request):
 def admin_approve_proposal(request):
     """API endpoint to approve a proposal."""
     if request.method == 'POST':
-        # Process the approval
-        messages.success(request, "✅ Proposal approved successfully.")
+        proposal_id = request.POST.get('proposal_id')
+        transaction_hash = request.POST.get('transaction_hash')
+        
+        try:
+            # جلب طلب الإلغاء من قاعدة البيانات
+            cancellation_request = CancellationRequest.objects.get(id=proposal_id)
+            
+            # تحديث حالة الطلب
+            cancellation_request.is_executed = True
+            
+            # إذا كان هناك هاش معاملة مرسل، أضفه إلى السجل
+            if transaction_hash:
+                cancellation_request.transaction_hash = transaction_hash
+            
+            # حفظ التغييرات
+            cancellation_request.save()
+            
+            messages.success(request, f"✅ Proposal #{proposal_id} approved successfully. Pool {cancellation_request.pool_id} cancelled.")
+        except CancellationRequest.DoesNotExist:
+            messages.error(request, f"❌ Proposal #{proposal_id} not found.")
+        except Exception as e:
+            print(f"Error approving proposal: {e}")
+            messages.error(request, f"❌ Error approving proposal: {str(e)}")
+    
     return redirect('admin_proposals')
 
 @admin_required

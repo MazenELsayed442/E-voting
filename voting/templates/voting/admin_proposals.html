@@ -4,98 +4,96 @@
 {% block admin_title %}Pending Proposals{% endblock %}
 
 {% block admin_content %}
-<div class="card mb-4">
-    <div class="card-header">
-        <h5 class="mb-0">Pending Approval Requests</h5>
+<div class="container">
+    <h3 class="mb-4">Pending Proposals</h3>
+    
+    <div class="card mb-4">
+        <div class="card-header bg-warning bg-opacity-25">
+            <h5 class="mb-0">Pending Approval Requests</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>Requester</th>
+                            <th>Date</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for proposal in proposals %}
+                            {% if proposal.status != 'Executed' %}
+                            <tr>
+                                <td>{{ proposal.type }}</td>
+                                <td>{{ proposal.requester }}</td>
+                                <td>{{ proposal.created_at }}</td>
+                                <td><span class="badge bg-warning">Pending</span></td>
+                                <td>
+                                    <a href="{% url 'admin_view_proposal' proposal.id %}" class="btn btn-sm btn-primary">
+                                        <i class="bi bi-eye"></i> View
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endif %}
+                        {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center py-4 text-muted">
+                                    <i class="bi bi-info-circle me-2"></i> No pending proposals at this time.
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
-    <div class="card-body">
-        {% if proposals %}
-        <div class="table-responsive">
-            <table class="table table-hover">
-                <thead>
-                    <tr>
-                        <th>Type</th>
-                        <th>Requester</th>
-                        <th>Date</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for proposal in proposals %}
-                    <tr>
-                        <td>{{ proposal.type }}</td>
-                        <td>{{ proposal.requester }}</td>
-                        <td>{{ proposal.created_at }}</td>
-                        <td><span class="badge bg-warning">Pending</span></td>
-                        <td>
-                            <a href="{% url 'admin_view_proposal' proposal.id %}" class="btn btn-sm btn-outline-primary">
-                                <i class="bi bi-eye me-1"></i> View
-                            </a>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+    
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center bg-success bg-opacity-25">
+            <h5 class="mb-0">Recently Completed Proposals</h5>
+            <span class="badge bg-secondary">Last 7 days</span>
         </div>
-        {% else %}
-        <div class="alert alert-info">
-            <i class="bi bi-info-circle me-2"></i> There are no pending proposals to review at this time.
+        <div class="card-body">
+            {% if executed_proposals %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>Requester</th>
+                            <th>Date</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for proposal in proposals %}
+                            {% if proposal.status == 'Executed' %}
+                            <tr>
+                                <td>{{ proposal.type }}</td>
+                                <td>{{ proposal.requester }}</td>
+                                <td>{{ proposal.created_at }}</td>
+                                <td><span class="badge bg-success">Executed</span></td>
+                                <td>
+                                    <a href="{% url 'admin_view_proposal' proposal.id %}" class="btn btn-sm btn-primary">
+                                        <i class="bi bi-eye"></i> View
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-info my-3">
+                <i class="bi bi-info-circle"></i> No proposals have been completed in the last 7 days.
+            </div>
+            {% endif %}
         </div>
-        {% endif %}
     </div>
 </div>
-
-<!-- Recently Completed Proposals - Optional section -->
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">Recently Completed Proposals</h5>
-        <span class="badge bg-secondary">Last 7 days</span>
-    </div>
-    <div class="card-body">
-        <div class="alert alert-info">
-            <i class="bi bi-info-circle me-2"></i> No proposals have been completed in the last 7 days.
-        </div>
-        
-        <!-- Uncomment this section once you have completed proposals data -->
-        <!--
-        <div class="table-responsive">
-            <table class="table table-hover">
-                <thead>
-                    <tr>
-                        <th>Type</th>
-                        <th>Requester</th>
-                        <th>Date</th>
-                        <th>Status</th>
-                        <th>Resolved By</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td>Cancel Pool</td>
-                        <td>admin@example.com</td>
-                        <td>2025-05-27</td>
-                        <td><span class="badge bg-success">Approved</span></td>
-                        <td>admin2@example.com</td>
-                    </tr>
-                    <tr>
-                        <td>Replace Admin</td>
-                        <td>admin@example.com</td>
-                        <td>2025-05-26</td>
-                        <td><span class="badge bg-danger">Rejected</span></td>
-                        <td>admin3@example.com</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-        -->
-    </div>
-</div>
-
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Optional: Add any interactive behavior here
-        console.log('Proposals page loaded');
-    });
-</script>
 {% endblock %} 
