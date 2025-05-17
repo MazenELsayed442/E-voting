@@ -2,7 +2,7 @@
 
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import CustomUser, Candidate, Voter # Import your models from this app
+from .models import CustomUser, Candidate, Voter, CancellationRequest # Import your models from this app
 
 # --- Admin Configuration for CustomUser ---
 @admin.register(CustomUser) # Use decorator for cleaner registration
@@ -68,3 +68,13 @@ class VoterAdmin(admin.ModelAdmin):
     @admin.display(description='Wallet Address')
     def get_wallet_address(self, obj):
         return getattr(obj, 'wallet_address', 'N/A') # Example
+
+# --- Admin Configuration for CancellationRequest ---
+@admin.register(CancellationRequest)
+class CancellationRequestAdmin(admin.ModelAdmin):
+    """Admin interface for the CancellationRequest model."""
+    list_display = ('pool_id', 'requested_by', 'created_at', 'is_executed')
+    list_filter = ('is_executed', 'created_at')
+    search_fields = ('pool_id', 'requested_by__email', 'reason')
+    readonly_fields = ('created_at',)
+    date_hierarchy = 'created_at'

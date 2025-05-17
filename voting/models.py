@@ -226,3 +226,41 @@ class EmailAuthBackend(BaseBackend):
             return User.objects.get(pk=user_id)
         except User.DoesNotExist:
             return None
+
+# CancellationRequest Model
+class CancellationRequest(models.Model):
+    """Model to track cancellation requests for voting pools."""
+    pool_id = models.IntegerField(
+        help_text='ID of the pool requested to be cancelled.'
+    )
+    reason = models.TextField(
+        help_text='Reason provided for cancellation.'
+    )
+    requested_by = models.ForeignKey(
+        'CustomUser',
+        on_delete=models.CASCADE,
+        related_name='cancellation_requests',
+        help_text='Admin who requested the cancellation.'
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text='When the cancellation was requested.'
+    )
+    is_executed = models.BooleanField(
+        default=False,
+        help_text='Whether the cancellation has been executed on the blockchain.'
+    )
+    transaction_hash = models.CharField(
+        max_length=66,  # Ethereum transaction hashes are 66 characters (0x + 64 hex chars)
+        blank=True,
+        null=True,
+        help_text='Blockchain transaction hash if executed.'
+    )
+    
+    def __str__(self):
+        return f"Cancel request for pool #{self.pool_id} by {self.requested_by.email}"
+    
+    class Meta:
+        verbose_name = "Cancellation Request"
+        verbose_name_plural = "Cancellation Requests"
+        ordering = ['-created_at']

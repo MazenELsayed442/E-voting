@@ -1203,7 +1203,7 @@ def admin_create_pool(request):
 def admin_cancel_pool_list(request):
     """List of all voting pools that can be cancelled."""
     # Import necessary utility functions
-    from .utils.contract_utils import get_web3, get_voting_contract, get_pool_count
+    from .utils.contract_utils import get_web3, get_voting_contract, get_pool_count, get_admin_contract_address
     import datetime
     
     # Initialize default values
@@ -1260,9 +1260,13 @@ def admin_cancel_pool_list(request):
                 'end_time': 'N/A'
             })
     
+    # Get admin contract address
+    admin_contract_address = get_admin_contract_address()
+    
     context = {
         'active_tab': 'cancel_pool',
-        'active_pools': active_pools
+        'active_pools': active_pools,
+        'admin_contract_address': admin_contract_address
     }
     return render(request, "voting/admin_cancel_pool.html", context)
 
@@ -1270,7 +1274,7 @@ def admin_cancel_pool_list(request):
 def admin_cancel_pool(request, pool_id):
     """Interface to request cancellation of a specific voting pool."""
     # Get details for the specific pool being cancelled
-    from .utils.contract_utils import get_pool_details
+    from .utils.contract_utils import get_pool_details, get_admin_contract_address
     import datetime
     
     # Try to get pool details from blockchain
@@ -1301,10 +1305,14 @@ def admin_cancel_pool(request, pool_id):
             {'id': pool_id, 'category': 'Unknown Pool', 'start_time': 'N/A', 'end_time': 'N/A'}
         ]
     
+    # Get admin contract address
+    admin_contract_address = get_admin_contract_address()
+    
     context = {
         'active_tab': 'cancel_pool',
         'active_pools': active_pools,
-        'pool_id': pool_id
+        'pool_id': pool_id,
+        'admin_contract_address': admin_contract_address
     }
     return render(request, "voting/admin_cancel_pool.html", context)
 
@@ -1462,8 +1470,19 @@ def admin_submit_cancel_request(request):
         pool_id = request.POST.get('pool_id')
         reason = request.POST.get('reason')
         
-        # Process the cancel request
-        messages.success(request, f"✅ Cancel request for pool #{pool_id} submitted successfully. Reason: {reason}")
+        try:
+            # Save the cancel request to the database for record keeping
+            from .models import CancellationRequest
+            CancellationRequest.objects.create(
+                pool_id=pool_id,
+                reason=reason,
+                requested_by=request.user
+            )
+            messages.success(request, f"✅ Cancel request for pool #{pool_id} submitted successfully. Reason: {reason}")
+        except Exception as e:
+            print(f"Failed to record cancellation request: {e}")
+            messages.warning(request, f"Transaction was sent to blockchain but we couldn't record it in our database: {e}")
+
     return redirect('admin_dashboard')
 
 @admin_required

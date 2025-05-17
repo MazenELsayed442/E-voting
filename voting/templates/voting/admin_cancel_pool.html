@@ -59,31 +59,49 @@
                 <h5 class="modal-title" id="cancelPoolModalLabel">Confirm Cancellation</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form action="{% url 'admin_submit_cancel_request' %}" method="post">
-                {% csrf_token %}
-                <div class="modal-body">
-                    <input type="hidden" id="poolId" name="pool_id" value="">
-                    
-                    <div class="mb-3">
-                        <p class="fw-bold">Are you sure you want to request cancellation of <span id="poolName" class="fw-bold text-danger"></span>?</p>
-                        <p>This action requires approval from other admins before taking effect.</p>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="reasonTextarea" class="form-label">Reason for Cancellation</label>
-                        <textarea class="form-control" id="reasonTextarea" name="reason" rows="3" required></textarea>
-                    </div>
+            <div class="modal-body">
+                <input type="hidden" id="poolId" name="pool_id" value="">
+                
+                <div class="mb-3">
+                    <p class="fw-bold">Are you sure you want to request cancellation of <span id="poolName" class="fw-bold text-danger"></span>?</p>
+                    <p>This action requires your MetaMask wallet to sign the transaction.</p>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="submit" class="btn btn-danger">Submit Cancellation Request</button>
+                
+                <div class="mb-3">
+                    <label for="reasonTextarea" class="form-label">Reason for Cancellation</label>
+                    <textarea class="form-control" id="reasonTextarea" name="reason" rows="3" required></textarea>
                 </div>
-            </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" id="confirmCancelBtn" class="btn btn-danger">Confirm Cancellation</button>
+            </div>
         </div>
     </div>
 </div>
 
+<!-- Status Modal -->
+<div class="modal fade" id="statusModal" tabindex="-1" aria-labelledby="statusModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="statusModalLabel">Transaction Status</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="status-message">
+                Preparing the transaction...
+            </div>
+            <div class="modal-footer" id="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 <script>
+    const adminContractAddress = "{{ admin_contract_address|default:'0x5FbDB2315678afecb367f032d93F642f64180aa3' }}";
+    
     document.addEventListener('DOMContentLoaded', function() {
         // Set the pool ID and name in the modal when it's opened
         const cancelPoolModal = document.getElementById('cancelPoolModal');
@@ -97,6 +115,130 @@
                 document.getElementById('poolName').textContent = poolName;
             });
         }
+        
+        // Add event listener to the confirm cancellation button
+        const confirmCancelBtn = document.getElementById('confirmCancelBtn');
+        if (confirmCancelBtn) {
+            confirmCancelBtn.addEventListener('click', cancelPool);
+        }
     });
+    
+    // Update status function for the status modal
+    function updateStatus(message, isError = false, isSuccess = false) {
+        const statusMessage = document.getElementById('status-message');
+        statusMessage.innerHTML = message;
+        
+        if (isError) {
+            statusMessage.className = 'text-danger';
+        } else if (isSuccess) {
+            statusMessage.className = 'text-success';
+        } else {
+            statusMessage.className = '';
+        }
+    }
+    
+    // Cancel Pool function using MetaMask
+    async function cancelPool() {
+        // Check if MetaMask is installed
+        if (typeof window.ethereum === 'undefined') {
+            alert('Please install MetaMask first to sign the transaction.');
+            return;
+        }
+        
+        // Get data from the form
+        const poolId = document.getElementById('poolId').value;
+        const reason = document.getElementById('reasonTextarea').value;
+        
+        if (!poolId || !reason) {
+            alert('Please provide a reason for cancellation.');
+            return;
+        }
+        
+        // Hide the cancel modal
+        const cancelModal = bootstrap.Modal.getInstance(document.getElementById('cancelPoolModal'));
+        cancelModal.hide();
+        
+        // Show the status modal
+        const statusModal = new bootstrap.Modal(document.getElementById('statusModal'));
+        statusModal.show();
+        
+        try {
+            updateStatus('Connecting to wallet...');
+            
+            // Request account connection
+            const provider = new ethers.providers.Web3Provider(window.ethereum);
+            await provider.send("eth_requestAccounts", []);
+            const signer = provider.getSigner();
+            const address = await signer.getAddress();
+            
+            updateStatus('Preparing transaction to cancel pool #' + poolId + '...');
+            
+            // Basic ABI for proposeCancelPool function in admin contract
+            const contractABI = [{
+                "inputs": [
+                    {"internalType": "uint256", "name": "_poolId", "type": "uint256"}
+                ],
+                "name": "proposeCancelPool",
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            }];
+            
+            const contract = new ethers.Contract(adminContractAddress, contractABI, signer);
+            
+            updateStatus('Sending transaction. Please sign it in MetaMask...');
+            
+            // Send the transaction with a high gas limit to avoid estimation issues
+            const tx = await contract.proposeCancelPool(
+                poolId,
+                { 
+                    gasLimit: 5000000  // Set high gas limit to avoid estimation errors
+                }
+            );
+            
+            updateStatus('Transaction sent successfully! Waiting for confirmation...');
+            
+            // Wait for confirmation
+            const receipt = await tx.wait();
+            
+            // Save reason to backend for reference
+            await saveReasonToBackend(poolId, reason);
+            
+            // Transaction success
+            updateStatus('Pool cancellation proposal submitted successfully!<br>Transaction Hash: ' + receipt.transactionHash, false, true);
+            
+            // Add dashboard button
+            const footer = document.getElementById('modal-footer');
+            const dashboardBtn = document.createElement('a');
+            dashboardBtn.href = "{% url 'admin_dashboard' %}";
+            dashboardBtn.className = "btn btn-primary";
+            dashboardBtn.innerText = "Go to Dashboard";
+            footer.prepend(dashboardBtn);
+            
+        } catch (error) {
+            console.error(error);
+            updateStatus('Error: ' + error.message, true);
+        }
+    }
+    
+    // Function to save the reason to backend
+    async function saveReasonToBackend(poolId, reason) {
+        try {
+            const response = await fetch('{% url "admin_submit_cancel_request" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: `pool_id=${poolId}&reason=${encodeURIComponent(reason)}`
+            });
+            
+            if (!response.ok) {
+                console.warn('Failed to save reason to backend:', await response.text());
+            }
+        } catch (error) {
+            console.warn('Error saving reason to backend:', error);
+        }
+    }
 </script>
 {% endblock %} 
