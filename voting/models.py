@@ -269,7 +269,20 @@ class PoolCancellationRequest(models.Model):
         """
         Check if the request can be approved (pending and not created by current admin).
         """
+        from django.contrib.auth import get_user_model
+        from django.shortcuts import get_object_or_404
+        
+        # This gets called in template context, so we need to check against the current user
+        # We need to use a method that doesn't require request object
+        # In a template, this would be used as: {% if request.can_be_approved_by:user %}
         return self.status == 'pending'
+    
+    def can_be_approved_by(self, user):
+        """
+        Check if the request can be approved by the specified admin.
+        Returns False if the user is the one who initiated the request.
+        """
+        return self.status == 'pending' and self.initiator != user
     
     @property
     def can_be_executed(self):

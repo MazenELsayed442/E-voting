@@ -927,6 +927,10 @@ def admin_dashboard(request):
             chain_id = web3.eth.chain_id
             
             try:
+                # Get the block number to display in the status
+                block_number = web3.eth.block_number
+                node_status = f"Connected (Chain ID: {chain_id}, Block: {block_number})"
+                
                 # Get voting contract and pool count
                 voting_contract = get_voting_contract()
                 pool_count = get_pool_count()
@@ -942,11 +946,16 @@ def admin_dashboard(request):
                         start_date = datetime.datetime.fromtimestamp(start_time).strftime('%Y-%m-%d')
                         end_date = datetime.datetime.fromtimestamp(end_time).strftime('%Y-%m-%d')
                         
+                        # Get the status text based on numeric status
                         pool_status_text = ["Pending", "Active", "Cancelled", "Ended"][status] if status < 4 else "Unknown"
                         
                         # Check if pool is within its time window
                         now = datetime.datetime.now().timestamp()
                         is_active_time = start_time <= now <= end_time
+                        
+                        # Update status text based on time-based activity
+                        if status == 0 and is_active_time:
+                            pool_status_text = "Active"  # Change Pending to Active if we're in the time window
                         
                         # Consider time-based activity too
                         if (status == 1) or (status == 0 and is_active_time):
@@ -1186,7 +1195,7 @@ def admin_create_pool(request):
 def admin_cancel_pool_list(request):
     """List of all voting pools that can be cancelled."""
     # Import necessary utility functions
-    from .utils.contract_utils import get_web3, get_voting_contract, get_pool_count
+    from .utils.contract_utils import get_web3, get_voting_contract, get_pool_count, get_admin_contract_address, load_abi
     import datetime
     
     # Initialize default values
@@ -1243,9 +1252,15 @@ def admin_cancel_pool_list(request):
                 'end_time': 'N/A'
             })
     
+    # Get contract address and ABI for MetaMask integration
+    admin_contract_address = get_admin_contract_address()
+    admin_contract_abi = load_abi("artifacts/contracts/VotingAdmin.sol/VotingAdmin.json")
+    
     context = {
         'active_tab': 'cancel_pool',
-        'active_pools': active_pools
+        'active_pools': active_pools,
+        'admin_contract_address': admin_contract_address,
+        'admin_contract_abi': json.dumps(admin_contract_abi)
     }
     return render(request, "voting/admin_cancel_pool.html", context)
 
@@ -1253,7 +1268,7 @@ def admin_cancel_pool_list(request):
 def admin_cancel_pool(request, pool_id):
     """Interface to request cancellation of a specific voting pool."""
     # Get details for the specific pool being cancelled
-    from .utils.contract_utils import get_pool_details
+    from .utils.contract_utils import get_pool_details, get_admin_contract_address, load_abi
     import datetime
     
     # Try to get pool details from blockchain
@@ -1284,10 +1299,16 @@ def admin_cancel_pool(request, pool_id):
             {'id': pool_id, 'category': 'Unknown Pool', 'start_time': 'N/A', 'end_time': 'N/A'}
         ]
     
+    # Get contract address and ABI for MetaMask integration
+    admin_contract_address = get_admin_contract_address()
+    admin_contract_abi = load_abi("artifacts/contracts/VotingAdmin.sol/VotingAdmin.json")
+    
     context = {
         'active_tab': 'cancel_pool',
         'active_pools': active_pools,
-        'pool_id': pool_id
+        'pool_id': pool_id,
+        'admin_contract_address': admin_contract_address,
+        'admin_contract_abi': json.dumps(admin_contract_abi)
     }
     return render(request, "voting/admin_cancel_pool.html", context)
 
@@ -1421,19 +1442,79 @@ def admin_view_pool(request, pool_id):
 @admin_required
 def admin_view_proposal(request, proposal_id):
     """View details of a specific proposal."""
-    # Placeholder data
-    proposal = {
-        'id': proposal_id,
-        'type': 'Cancel Pool',
-        'requester': 'admin@example.com',
-        'created_at': '2025-05-28',
-        'details': 'Request to cancel President voting pool due to technical issues.',
-        'status': 'Pending'
-    }
-    context = {
-        'active_tab': 'proposals',
-        'proposal': proposal
-    }
+    try:
+        # For now, we're only handling pool cancellation requests
+        cancellation_request = get_object_or_404(PoolCancellationRequest, id=proposal_id)
+        
+        # Get contract address and ABI for MetaMask integration
+        from .utils.contract_utils import get_admin_contract_address, load_abi, get_web3, get_voting_contract
+        admin_contract_address = get_admin_contract_address()
+        admin_contract_abi = load_abi("artifacts/contracts/VotingAdmin.sol/VotingAdmin.json")
+        
+        # Try to get pool details from blockchain if connected
+        pool_info = {}
+        try:
+            web3 = get_web3()
+            if web3.is_connected():
+                voting_contract = get_voting_contract()
+                pool_details = voting_contract.functions.getPoolDetails(cancellation_request.pool_id).call()
+                id, category, candidates, start_time, end_time, status = pool_details
+                
+                import datetime
+                start_date = datetime.datetime.fromtimestamp(start_time).strftime('%Y-%m-%d')
+                end_date = datetime.datetime.fromtimestamp(end_time).strftime('%Y-%m-%d')
+                
+                pool_info = {
+                    'category': category,
+                    'start_date': start_date,
+                    'end_date': end_date,
+                    'status': ["Pending", "Active", "Cancelled", "Ended"][status] if status < 4 else "Unknown"
+                }
+        except Exception as e:
+            print(f"Error getting pool details: {e}")
+            pool_info = {
+                'category': 'Unknown',
+                'start_date': 'N/A',
+                'end_date': 'N/A',
+                'status': 'Unknown'
+            }
+            
+        # Create proposal data for the template
+        proposal = {
+            'id': cancellation_request.id,
+            'type': 'Cancel Pool',
+            'requester': cancellation_request.initiator.username,
+            'created_at': cancellation_request.created_at.strftime('%Y-%m-%d %H:%M'),
+            'details': cancellation_request.reason,
+            'status': cancellation_request.status.capitalize(),
+            'pool_id': cancellation_request.pool_id,
+            'pool_info': pool_info,
+            'can_be_approved': cancellation_request.can_be_approved_by(request.user)
+        }
+        
+        context = {
+            'active_tab': 'proposals',
+            'proposal': proposal,
+            'admin_contract_address': admin_contract_address,
+            'admin_contract_abi': json.dumps(admin_contract_abi)
+        }
+        
+    except Exception as e:
+        # If anything goes wrong, use placeholder data
+        messages.error(request, f"Error loading proposal details: {str(e)}")
+        proposal = {
+            'id': proposal_id,
+            'type': 'Cancel Pool',
+            'requester': 'Unknown',
+            'created_at': 'N/A',
+            'details': 'Error loading proposal details.',
+            'status': 'Error'
+        }
+        context = {
+            'active_tab': 'proposals',
+            'proposal': proposal
+        }
+        
     return render(request, "voting/admin_view_proposal.html", context)
 
 # Admin API endpoints (These would be AJAX endpoints in a real implementation)
@@ -1444,6 +1525,8 @@ def admin_submit_cancel_request(request):
         # Get the pool ID and reason from the form
         pool_id = request.POST.get('pool_id')
         reason = request.POST.get('reason')
+        # Get transaction hash if available (when submitted via MetaMask)
+        transaction_hash = request.POST.get('transaction_hash')
         
         if not pool_id or not reason:
             messages.error(request, "❌ Pool ID and reason are required.")
@@ -1455,7 +1538,8 @@ def admin_submit_cancel_request(request):
                 pool_id=int(pool_id),
                 reason=reason,
                 initiator=request.user,
-                status='pending'
+                status='pending',
+                transaction_hash=transaction_hash
             )
             
             messages.success(request, f"✅ Cancel request for pool #{pool_id} submitted successfully. Waiting for another admin to approve.")
@@ -1512,7 +1596,7 @@ def admin_approve_cancellation(request, request_id):
                 return redirect('admin_pending_cancellations')
             
             # Check if the approver is not the same as the initiator
-            if cancellation_request.initiator == request.user:
+            if not cancellation_request.can_be_approved_by(request.user):
                 messages.error(request, "❌ You cannot approve your own cancellation request.")
                 return redirect('admin_pending_cancellations')
             
@@ -1537,7 +1621,7 @@ def admin_approve_cancellation(request, request_id):
                 admin_address = web3.to_checksum_address(request.user.wallet_address)
                 
                 # Call the smart contract function to cancel the pool
-                tx = admin_contract.functions.cancelPool(
+                tx = admin_contract.functions.proposeCancelPool(
                     cancellation_request.pool_id
                 ).build_transaction({
                     'from': admin_address,
@@ -1608,8 +1692,38 @@ def admin_submit_replace_request(request):
 def admin_approve_proposal(request):
     """API endpoint to approve a proposal."""
     if request.method == 'POST':
-        # Process the approval
-        messages.success(request, "✅ Proposal approved successfully.")
+        proposal_id = request.POST.get('proposal_id')
+        
+        if not proposal_id:
+            messages.error(request, "❌ Proposal ID is required.")
+            return redirect('admin_proposals')
+        
+        try:
+            # For now, we're only handling pool cancellation requests
+            cancellation_request = PoolCancellationRequest.objects.get(id=proposal_id)
+            
+            # Check if the request is still pending
+            if cancellation_request.status != 'pending':
+                messages.error(request, "❌ This request has already been processed.")
+                return redirect('admin_view_proposal', proposal_id=proposal_id)
+            
+            # Check if the approver is not the same as the initiator
+            if not cancellation_request.can_be_approved_by(request.user):
+                messages.error(request, "❌ You cannot approve your own cancellation request.")
+                return redirect('admin_view_proposal', proposal_id=proposal_id)
+            
+            # Update the request status and approver
+            cancellation_request.status = 'approved'
+            cancellation_request.approver = request.user
+            cancellation_request.save()
+            
+            # Redirect to a page where the user will be prompted to sign the transaction with MetaMask
+            return redirect('admin_pending_cancellations')
+            
+        except PoolCancellationRequest.DoesNotExist:
+            messages.error(request, "❌ Cancellation request not found.")
+            return redirect('admin_proposals')
+    
     return redirect('admin_proposals')
 
 @admin_required

@@ -40,7 +40,7 @@
                                     <td>{{ request.reason|truncatechars:50 }}</td>
                                     <td>{{ request.created_at|date:"M d, Y H:i" }}</td>
                                     <td>
-                                        {% if request.initiator != user %}
+                                        {% if request.can_be_approved_by:user %}
                                             <form method="POST" action="{% url 'admin_approve_cancellation' request.id %}" class="d-inline">
                                                 {% csrf_token %}
                                                 <button type="submit" class="btn btn-sm btn-success">Approve</button>
@@ -50,7 +50,11 @@
                                                 <button type="submit" class="btn btn-sm btn-danger">Reject</button>
                                             </form>
                                         {% else %}
-                                            <span class="badge badge-info">Awaiting another admin</span>
+                                            {% if request.initiator == user %}
+                                                <span class="badge badge-info">Awaiting another admin</span>
+                                            {% else %}
+                                                <span class="badge badge-warning">Cannot approve</span>
+                                            {% endif %}
                                         {% endif %}
                                     </td>
                                 </tr>
@@ -172,8 +176,8 @@
             
             const contract = new ethers.Contract(ADMIN_CONTRACT_ADDRESS, ADMIN_CONTRACT_ABI, signer);
             
-            // Call the cancelPool function
-            const tx = await contract.cancelPool(poolId);
+            // Call the proposeCancelPool function instead of cancelPool
+            const tx = await contract.proposeCancelPool(poolId);
             alert('Transaction submitted. Waiting for confirmation...');
             
             // Wait for transaction to be mined
@@ -182,7 +186,7 @@
             // Update the UI or send the transaction hash to the backend
             await updateTransactionHash(requestId, receipt.transactionHash);
             
-            alert('Pool cancellation executed successfully!');
+            alert('Pool cancellation proposal executed successfully!');
             window.location.reload();
             
         } catch (error) {

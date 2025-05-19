@@ -59,7 +59,7 @@
                 <h5 class="modal-title" id="cancelPoolModalLabel">Confirm Cancellation</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form action="{% url 'admin_submit_cancel_request' %}" method="post">
+            <form id="cancelPoolForm">
                 {% csrf_token %}
                 <div class="modal-body">
                     <input type="hidden" id="poolId" name="pool_id" value="">
@@ -83,6 +83,7 @@
     </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         // Set the pool ID and name in the modal when it's opened
@@ -95,6 +96,88 @@
                 
                 document.getElementById('poolId').value = poolId;
                 document.getElementById('poolName').textContent = poolName;
+            });
+        }
+
+        // Handle form submission with MetaMask integration
+        const cancelPoolForm = document.getElementById('cancelPoolForm');
+        if (cancelPoolForm) {
+            cancelPoolForm.addEventListener('submit', async function(event) {
+                event.preventDefault();
+                
+                const poolId = document.getElementById('poolId').value;
+                const reason = document.getElementById('reasonTextarea').value;
+                
+                // Validate form
+                if (!poolId || !reason) {
+                    alert('Please fill in all required fields.');
+                    return;
+                }
+                
+                // Check if MetaMask is installed
+                if (typeof window.ethereum === 'undefined') {
+                    alert('MetaMask is not installed. Please install MetaMask to sign the transaction.');
+                    return;
+                }
+                
+                try {
+                    const provider = new ethers.providers.Web3Provider(window.ethereum);
+                    await provider.send("eth_requestAccounts", []);
+                    const signer = provider.getSigner();
+                    
+                    // Get admin contract details
+                    const ADMIN_CONTRACT_ADDRESS = "{{ admin_contract_address|default:'0x0' }}";
+                    let ADMIN_CONTRACT_ABI = [];
+                    
+                    try {
+                        // Try to parse the ABI if it exists
+                        {% if admin_contract_abi %}
+                        ADMIN_CONTRACT_ABI = JSON.parse('{{ admin_contract_abi|escapejs }}');
+                        {% endif %}
+                    } catch (error) {
+                        console.error("Error parsing contract ABI:", error);
+                    }
+                    
+                    console.log("Contract Address:", ADMIN_CONTRACT_ADDRESS);
+                    console.log("Contract ABI defined:", ADMIN_CONTRACT_ABI.length > 0 ? "Yes" : "No");
+                    
+                    if (ADMIN_CONTRACT_ADDRESS === '0x0' || ADMIN_CONTRACT_ABI.length === 0) {
+                        alert('Contract details not available. Please refresh the page or contact support.');
+                        return;
+                    }
+                    
+                    const contract = new ethers.Contract(ADMIN_CONTRACT_ADDRESS, ADMIN_CONTRACT_ABI, signer);
+                    
+                    // First call the blockchain to propose cancellation
+                    const tx = await contract.proposeCancelPool(poolId);
+                    alert('Transaction submitted. Waiting for confirmation...');
+                    
+                    // Wait for transaction to be mined
+                    const receipt = await tx.wait();
+                    
+                    // Transaction was successful, now submit the form to the server
+                    const formData = new FormData();
+                    formData.append('pool_id', poolId);
+                    formData.append('reason', reason);
+                    formData.append('transaction_hash', receipt.transactionHash);
+                    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+                    
+                    const response = await fetch('{% url "admin_submit_cancel_request" %}', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    if (response.ok) {
+                        alert('Cancellation request submitted successfully!');
+                        window.location.href = '{% url "admin_pending_cancellations" %}';
+                    } else {
+                        alert('Error submitting cancellation request to the server.');
+                    }
+                    
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('Error: ' + error.message);
+                }
             });
         }
     });

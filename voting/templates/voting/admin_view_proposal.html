@@ -137,15 +137,20 @@
             </div>
             <div class="modal-body">
                 <p>Are you sure you want to approve this {{ proposal.type }} proposal?</p>
-                <p><strong>This action cannot be undone once submitted to the blockchain.</strong></p>
+                <p><strong>This action requires two steps:</strong></p>
+                <ol>
+                    <li>Your approval will be recorded in the database</li>
+                    <li>You will need to sign the transaction with MetaMask to record it on the blockchain</li>
+                </ol>
+                <p><strong>This action cannot be undone.</strong></p>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <form action="{% url 'admin_approve_proposal' %}" method="post">
+                <form action="{% url 'admin_approve_proposal' %}" method="post" id="approveForm">
                     {% csrf_token %}
                     <input type="hidden" name="proposal_id" value="{{ proposal.id }}">
                     <input type="hidden" name="notes" id="approve-notes">
-                    <button type="submit" class="btn btn-success">Confirm Approval</button>
+                    <button type="submit" class="btn btn-success">Approve (Step 1)</button>
                 </form>
             </div>
         </div>
@@ -181,6 +186,8 @@
     </div>
 </div>
 
+<!-- Add MetaMask integration script -->
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         // Transfer notes to modal forms when opened
@@ -208,6 +215,19 @@
             hiddenRejectReason.value = rejectReason;
             return true;
         });
+        
+        // Listen for form submission and handle approval
+        const approveForm = document.getElementById('approveForm');
+        if (approveForm) {
+            approveForm.addEventListener('submit', function(event) {
+                {% if proposal.can_be_approved %}
+                // Allow form submission for step 1
+                {% else %}
+                event.preventDefault();
+                alert('You cannot approve this request because it was either created by you or has already been processed.');
+                {% endif %}
+            });
+        }
     });
 </script>
 {% endblock %} 
