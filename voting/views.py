@@ -622,10 +622,8 @@ def vote_category(request, category):
 
 @non_admin_required
 def get_candidate_details(request, candidate_id):
-    
     candidate = get_object_or_404(Candidate, id=candidate_id)
 
-    
     try:
         with open("blockchain/artifacts/contracts/Voting.sol/Voting.json", "r") as f:
             contract_data = json.load(f)
@@ -633,27 +631,73 @@ def get_candidate_details(request, candidate_id):
     except FileNotFoundError:
         contract_abi = []
 
-    
     contract_address = getattr(settings, "VOTING_CONTRACT_ADDRESS", None)
     if not contract_address:
-        
         raise RuntimeError("VOTING_CONTRACT_ADDRESS is not set in settings.py")
 
-    
+    # Get pool ID from blockchain
+    pool_id = None
+    try:
+        web3 = get_web3()
+        if web3.is_connected():
+            voting_contract = get_voting_contract()
+            pool_count = get_pool_count()
+            
+            # Find the pool ID that matches this candidate's category
+            for pid in range(pool_count):
+                try:
+                    pool_details = voting_contract.functions.getPoolDetails(pid).call()
+                    id, category, candidates, start_time, end_time, status = pool_details
+                    # Check if this pool matches our candidate's category
+                    if category == candidate.category:
+                        print("found pool id through category:", id)
+                        pool_id = id
+                        break
+                except Exception as e:
+                    print(f"Error getting details for pool {pid}: {e}")
+                    
+            # If no pool found, try to find by candidate name
+            if pool_id is None:
+                for pid in range(pool_count):
+                    try:
+                        pool_details = voting_contract.functions.getPoolDetails(pid).call()
+                        id, category, candidates, start_time, end_time, status = pool_details
+                        # Check if this pool contains our candidate
+                        if candidate.name in candidates:
+                            print("found pool id through candidate name")
+                            pool_id = id
+                            break
+                    except Exception as e:
+                        print(f"Error getting details for pool {pid}: {e}")
+    except Exception as e:
+        print(f"Error connecting to blockchain: {e}")
+
+    # If still no pool ID found, use a fallback
+    if pool_id is None:
+        # Try to find a pool ID from the database
+        try:
+            # Get all candidates in the same category
+            category_candidates = Candidate.objects.filter(category=candidate.category)
+            # Use the index of the category as a fallback pool ID
+            categories = Candidate.objects.values_list('category', flat=True).distinct()
+            pool_id = list(categories).index(candidate.category)
+        except (ValueError, IndexError):
+            # If all else fails, use 0 as a last resort
+            pool_id = 0
+
     context = {
         "candidate": candidate,
         "contract_abi": json.dumps(contract_abi),
         "contract_address": contract_address,
-        
-        
+        "pool_id": pool_id
     }
 
-    
     if request.headers.get("X-Requested-With") == "XMLHttpRequest":
         response_data = {
             "name": candidate.name,
             "description": candidate.description,
             "category": candidate.category,
+            "pool_id": pool_id  # Include pool_id in AJAX response
         }
         # Only add image URL if the image exists
         if candidate.image and candidate.image.name:
