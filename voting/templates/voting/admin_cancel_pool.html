@@ -59,12 +59,20 @@
                 <h5 class="modal-title" id="cancelPoolModalLabel">Confirm Cancellation</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body">
-                <input type="hidden" id="poolId" name="pool_id" value="">
-                
-                <div class="mb-3">
-                    <p class="fw-bold">Are you sure you want to request cancellation of <span id="poolName" class="fw-bold text-danger"></span>?</p>
-                    <p>This action requires your MetaMask wallet to sign the transaction.</p>
+            <form id="cancelPoolForm">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <input type="hidden" id="poolId" name="pool_id" value="">
+                    
+                    <div class="mb-3">
+                        <p class="fw-bold">Are you sure you want to request cancellation of <span id="poolName" class="fw-bold text-danger"></span>?</p>
+                        <p>This action requires approval from other admins before taking effect.</p>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="reasonTextarea" class="form-label">Reason for Cancellation</label>
+                        <textarea class="form-control" id="reasonTextarea" name="reason" rows="3" required></textarea>
+                    </div>
                 </div>
                 
                 <div class="mb-3">
@@ -75,24 +83,6 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 <button type="button" id="confirmCancelBtn" class="btn btn-danger">Confirm Cancellation</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Status Modal -->
-<div class="modal fade" id="statusModal" tabindex="-1" aria-labelledby="statusModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="statusModalLabel">Transaction Status</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body" id="status-message">
-                Preparing the transaction...
-            </div>
-            <div class="modal-footer" id="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
@@ -115,11 +105,87 @@
                 document.getElementById('poolName').textContent = poolName;
             });
         }
-        
-        // Add event listener to the confirm cancellation button
-        const confirmCancelBtn = document.getElementById('confirmCancelBtn');
-        if (confirmCancelBtn) {
-            confirmCancelBtn.addEventListener('click', cancelPool);
+
+        // Handle form submission with MetaMask integration
+        const cancelPoolForm = document.getElementById('cancelPoolForm');
+        if (cancelPoolForm) {
+            cancelPoolForm.addEventListener('submit', async function(event) {
+                event.preventDefault();
+                
+                const poolId = document.getElementById('poolId').value;
+                const reason = document.getElementById('reasonTextarea').value;
+                
+                // Validate form
+                if (!poolId || !reason) {
+                    alert('Please fill in all required fields.');
+                    return;
+                }
+                
+                // Check if MetaMask is installed
+                if (typeof window.ethereum === 'undefined') {
+                    alert('MetaMask is not installed. Please install MetaMask to sign the transaction.');
+                    return;
+                }
+                
+                try {
+                    const provider = new ethers.providers.Web3Provider(window.ethereum);
+                    await provider.send("eth_requestAccounts", []);
+                    const signer = provider.getSigner();
+                    
+                    // Get admin contract details
+                    const ADMIN_CONTRACT_ADDRESS = "{{ admin_contract_address|default:'0x0' }}";
+                    let ADMIN_CONTRACT_ABI = [];
+                    
+                    try {
+                        // Try to parse the ABI if it exists
+                        {% if admin_contract_abi %}
+                        ADMIN_CONTRACT_ABI = JSON.parse('{{ admin_contract_abi|escapejs }}');
+                        {% endif %}
+                    } catch (error) {
+                        console.error("Error parsing contract ABI:", error);
+                    }
+                    
+                    console.log("Contract Address:", ADMIN_CONTRACT_ADDRESS);
+                    console.log("Contract ABI defined:", ADMIN_CONTRACT_ABI.length > 0 ? "Yes" : "No");
+                    
+                    if (ADMIN_CONTRACT_ADDRESS === '0x0' || ADMIN_CONTRACT_ABI.length === 0) {
+                        alert('Contract details not available. Please refresh the page or contact support.');
+                        return;
+                    }
+                    
+                    const contract = new ethers.Contract(ADMIN_CONTRACT_ADDRESS, ADMIN_CONTRACT_ABI, signer);
+                    
+                    // First call the blockchain to propose cancellation
+                    const tx = await contract.proposeCancelPool(poolId);
+                    alert('Transaction submitted. Waiting for confirmation...');
+                    
+                    // Wait for transaction to be mined
+                    const receipt = await tx.wait();
+                    
+                    // Transaction was successful, now submit the form to the server
+                    const formData = new FormData();
+                    formData.append('pool_id', poolId);
+                    formData.append('reason', reason);
+                    formData.append('transaction_hash', receipt.transactionHash);
+                    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+                    
+                    const response = await fetch('{% url "admin_submit_cancel_request" %}', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    if (response.ok) {
+                        alert('Cancellation request submitted successfully!');
+                        window.location.href = '{% url "admin_pending_cancellations" %}';
+                    } else {
+                        alert('Error submitting cancellation request to the server.');
+                    }
+                    
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('Error: ' + error.message);
+                }
+            });
         }
     });
     

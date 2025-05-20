@@ -203,6 +203,93 @@ class Category(models.Model):
     class Meta:
         verbose_name_plural = "Categories"
 
+# Pool Cancellation Request Model
+class PoolCancellationRequest(models.Model):
+    """
+    Model to track pool cancellation requests from admins.
+    A pool can be canceled when at least 2 admins approve the request.
+    """
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+        ('executed', 'Executed')  # When the cancellation has been executed on the blockchain
+    ]
+    
+    # The pool ID on the blockchain to be canceled
+    pool_id = models.IntegerField()
+    
+    # Reason for cancellation
+    reason = models.TextField()
+    
+    # Admin who initiated the cancellation request
+    initiator = models.ForeignKey(
+        CustomUser, 
+        on_delete=models.CASCADE, 
+        related_name='initiated_cancellations'
+    )
+    
+    # Admin who approved the cancellation (can be null if not yet approved)
+    approver = models.ForeignKey(
+        CustomUser, 
+        on_delete=models.CASCADE, 
+        related_name='approved_cancellations',
+        null=True, 
+        blank=True
+    )
+    
+    # Status of the request
+    status = models.CharField(
+        max_length=10,
+        choices=STATUS_CHOICES,
+        default='pending'
+    )
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    # Transaction hash when the cancellation is executed on the blockchain
+    transaction_hash = models.CharField(max_length=66, blank=True, null=True)
+    
+    class Meta:
+        verbose_name = "Pool Cancellation Request"
+        verbose_name_plural = "Pool Cancellation Requests"
+    
+    def __str__(self):
+        return f"Cancellation Request for Pool #{self.pool_id} by {self.initiator.username}"
+    
+    @property
+    def is_approved(self):
+        """Check if the request is approved."""
+        return self.status == 'approved' or self.status == 'executed'
+    
+    @property
+    def can_be_approved(self):
+        """
+        Check if the request can be approved (pending and not created by current admin).
+        """
+        from django.contrib.auth import get_user_model
+        from django.shortcuts import get_object_or_404
+        
+        # This gets called in template context, so we need to check against the current user
+        # We need to use a method that doesn't require request object
+        # In a template, this would be used as: {% if request.can_be_approved_by:user %}
+        return self.status == 'pending'
+    
+    def can_be_approved_by(self, user):
+        """
+        Check if the request can be approved by the specified admin.
+        Returns False if the user is the one who initiated the request.
+        """
+        return self.status == 'pending' and self.initiator != user
+    
+    @property
+    def can_be_executed(self):
+        """
+        Check if the cancellation can be executed on the blockchain.
+        """
+        return self.status == 'approved' and not self.transaction_hash
 
 
 from django.contrib.auth.backends import BaseBackend

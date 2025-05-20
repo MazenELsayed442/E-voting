@@ -1,0 +1,1 @@
+Context: this project is django decentralized voting system. We use blockchain in hardhat  and each user has a wallet that he creates on metamask  and uses it on our system. i already have login setp up, different for admin from normal voters. There are only 3 admins in the system. 2 admins are required to cancel a pool or replace another admin.

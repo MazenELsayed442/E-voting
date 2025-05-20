@@ -61,29 +61,35 @@
                         <p>{{ proposal.details }}</p>
                     </div>
 
-                    {% if proposal.pool_info %}
-                    <div class="mt-4 p-3 bg-info bg-opacity-10 rounded">
-                        <h5 class="mb-3">Voting Pool Information</h5>
-                        <div class="row">
-                            <div class="col-md-3">
-                                <p class="mb-1"><strong>Category:</strong></p>
-                                <p>{{ proposal.pool_info.category }}</p>
-                            </div>
-                            <div class="col-md-3">
-                                <p class="mb-1"><strong>Start Date:</strong></p>
-                                <p>{{ proposal.pool_info.start_date }}</p>
-                            </div>
-                            <div class="col-md-3">
-                                <p class="mb-1"><strong>End Date:</strong></p>
-                                <p>{{ proposal.pool_info.end_date }}</p>
-                            </div>
-                            <div class="col-md-3">
-                                <p class="mb-1"><strong>Current Votes:</strong></p>
-                                <p>{{ proposal.pool_info.votes }}</p>
-                            </div>
-                        </div>
-                    </div>
-                    {% endif %}
+<!-- Approve Modal -->
+<div class="modal fade" id="approveModal" tabindex="-1" aria-labelledby="approveModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="approveModalLabel">Confirm Approval</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to approve this {{ proposal.type }} proposal?</p>
+                <p><strong>This action requires two steps:</strong></p>
+                <ol>
+                    <li>Your approval will be recorded in the database</li>
+                    <li>You will need to sign the transaction with MetaMask to record it on the blockchain</li>
+                </ol>
+                <p><strong>This action cannot be undone.</strong></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form action="{% url 'admin_approve_proposal' %}" method="post" id="approveForm">
+                    {% csrf_token %}
+                    <input type="hidden" name="proposal_id" value="{{ proposal.id }}">
+                    <input type="hidden" name="notes" id="approve-notes">
+                    <button type="submit" class="btn btn-success">Approve (Step 1)</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 
                     <div class="mt-4 card">
                         <div class="card-header">
@@ -144,6 +150,7 @@
     </div>
 </div>
 
+<!-- Add MetaMask integration script -->
 <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 <script>
     // Contract address from context
@@ -163,12 +170,33 @@
             approveBtn.addEventListener('click', handleApproval);
         }
         
-        if (rejectBtn) {
-            rejectBtn.addEventListener('click', function() {
-                if (confirm('Are you sure you want to reject this proposal?')) {
-                    // إرسال نموذج رفض المقترح (يمكن تنفيذه في المستقبل)
-                    alert('Rejection functionality will be implemented soon.');
-                }
+        // Validation for reject reason
+        const rejectReasonInput = document.getElementById('reject-reason');
+        const hiddenRejectReason = document.getElementById('hidden-reject-reason');
+        const confirmRejectBtn = document.getElementById('confirm-reject-btn');
+        
+        confirmRejectBtn.addEventListener('click', function(event) {
+            const rejectReason = rejectReasonInput.value.trim();
+            if (!rejectReason) {
+                event.preventDefault();
+                alert('Please provide a reason for rejection.');
+                return false;
+            }
+            
+            hiddenRejectReason.value = rejectReason;
+            return true;
+        });
+        
+        // Listen for form submission and handle approval
+        const approveForm = document.getElementById('approveForm');
+        if (approveForm) {
+            approveForm.addEventListener('submit', function(event) {
+                {% if proposal.can_be_approved %}
+                // Allow form submission for step 1
+                {% else %}
+                event.preventDefault();
+                alert('You cannot approve this request because it was either created by you or has already been processed.');
+                {% endif %}
             });
         }
     });

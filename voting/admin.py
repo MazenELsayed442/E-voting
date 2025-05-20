@@ -2,7 +2,7 @@
 
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import CustomUser, Candidate, Voter, CancellationRequest # Import your models from this app
+from .models import CustomUser, Candidate, Voter, Category, PoolCancellationRequest # Import your models from this app
 
 # --- Admin Configuration for CustomUser ---
 @admin.register(CustomUser) # Use decorator for cleaner registration
@@ -69,12 +69,30 @@ class VoterAdmin(admin.ModelAdmin):
     def get_wallet_address(self, obj):
         return getattr(obj, 'wallet_address', 'N/A') # Example
 
-# --- Admin Configuration for CancellationRequest ---
-@admin.register(CancellationRequest)
-class CancellationRequestAdmin(admin.ModelAdmin):
-    """Admin interface for the CancellationRequest model."""
-    list_display = ('pool_id', 'requested_by', 'created_at', 'is_executed')
-    list_filter = ('is_executed', 'created_at')
-    search_fields = ('pool_id', 'requested_by__email', 'reason')
-    readonly_fields = ('created_at',)
-    date_hierarchy = 'created_at'
+# Register Category with admin
+@admin.register(Category)
+class CategoryAdmin(admin.ModelAdmin):
+    list_display = ('name',)
+    search_fields = ('name',)
+
+# Register PoolCancellationRequest with admin
+@admin.register(PoolCancellationRequest)
+class PoolCancellationRequestAdmin(admin.ModelAdmin):
+    list_display = ('pool_id', 'initiator', 'approver', 'status', 'created_at', 'updated_at')
+    list_filter = ('status', 'created_at')
+    search_fields = ('pool_id', 'initiator__username', 'initiator__email', 'approver__username', 'approver__email')
+    readonly_fields = ('created_at', 'updated_at', 'transaction_hash')
+    fieldsets = (
+        ('Request Information', {
+            'fields': ('pool_id', 'reason', 'status')
+        }),
+        ('Admin Information', {
+            'fields': ('initiator', 'approver')
+        }),
+        ('Blockchain Information', {
+            'fields': ('transaction_hash',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at')
+        }),
+    )

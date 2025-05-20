@@ -115,6 +115,20 @@
             margin-right: 0.4rem;
         }
 
+        nav .user-info {
+            background-color: rgba(255, 255, 255, 0.15);
+            color: white;
+            font-weight: 500;
+            border-radius: 6px;
+            margin: 0 0.5rem;
+            cursor: default;
+        }
+        
+        nav .user-info i {
+            color: #ffcc00;
+            margin-right: 0.4rem;
+        }
+
         nav .btn-auth {
             background-color: white;
             color: #1e3c72;
@@ -197,6 +211,10 @@
                             <i class="bi bi-check2-circle"></i>Vote
                         </a>
                         {% endif %}
+                        
+                        <span class="nav-link user-info">
+                            <i class="bi bi-person-circle"></i>{{ user.username }}
+                        </span>
                         
                         <a class="nav-link" href="{% url 'logout' %}">
                             <i class="bi bi-box-arrow-right"></i>Sign out
