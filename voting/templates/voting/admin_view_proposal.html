@@ -254,7 +254,11 @@
                         const receipt = await tx.wait();
                         
                         // Update database with transaction hash
-                        const response = await fetch(`/admin-portal/update-transaction-hash/${PROPOSAL_ID}/`, {
+                        // Use proposal.id (Django DB ID) for this URL
+                        const djangoProposalDbId = {{ proposal.id }};
+                        console.log(`[DEBUG] Using Django DB ID for update-transaction-hash: ${djangoProposalDbId}`);
+
+                        const response = await fetch(`/update-transaction-hash/${djangoProposalDbId}/`, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -269,12 +273,34 @@
                             alert('Proposal approved successfully!');
                             window.location.href = "{% url 'admin_pending_cancellations' %}";
                         } else {
-                            throw new Error('Failed to update transaction hash');
+                            // Enhanced error logging:
+                            let errorText = 'Failed to update transaction hash.';
+                            try {
+                                const responseBody = await response.text(); // Get raw response body
+                                errorText += `\nStatus: ${response.status} (${response.statusText})\nServer response: ${responseBody}`;
+                                console.error('Server Error Status (update-transaction-hash):', response.status, response.statusText);
+                                console.error('Server Response Body (update-transaction-hash):', responseBody);
+                            } catch (e) {
+                                console.error('Failed to parse response body (update-transaction-hash):', e);
+                                errorText += `\nStatus: ${response.status} (${response.statusText}). Could not read response body.`;
+                            }
+                            // Instead of throwing an error which might be caught by an outer try/catch,
+                            // display the alert directly here to ensure the user sees the detailed message.
+                            alert(errorText);
                         }
 
                     } catch (error) {
                         console.error('Error:', error);
-                        alert('Error: ' + (error.message || 'Failed to approve proposal'));
+                        let detailedErrorMessage = 'Failed to approve proposal.';
+                        if (error.message) {
+                            detailedErrorMessage += `\nDetails: ${error.message}`;
+                        }
+                        if (error.data && error.data.message) { // For MetaMask/JSON-RPC errors
+                            detailedErrorMessage += `\nReason: ${error.data.message}`;
+                        } else if (error.reason) { // Ethers.js often puts revert reasons here
+                            detailedErrorMessage += `\nReason: ${error.reason}`;
+                        }
+                        alert(detailedErrorMessage);
                     }
                 {% else %}
                     alert('You cannot approve this request because it was either created by you or has already been processed.');

@@ -40,7 +40,7 @@
                                     <td>{{ request.reason|truncatechars:50 }}</td>
                                     <td>{{ request.created_at|date:"M d, Y H:i" }}</td>
                                     <td>
-                                        {% if request.can_be_approved_by:user %}
+                                        {% if request.can_be_approved_by %}
                                             <form method="POST" action="{% url 'admin_approve_cancellation' request.id %}" class="d-inline">
                                                 {% csrf_token %}
                                                 <button type="submit" class="btn btn-sm btn-success">Approve</button>

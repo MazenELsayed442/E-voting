@@ -1597,6 +1597,7 @@ def admin_submit_cancel_request(request):
                 transaction_hash=transaction_hash,
                 blockchain_proposal_id=blockchain_proposal_id
             )
+            print("sucessfuly created cancellation request hahahhha")
             messages.success(request, f"✅ Cancel request for pool #{pool_id} submitted successfully. Waiting for another admin to approve.")
             return redirect('admin_pending_cancellations')
         except Exception as e:
@@ -1794,6 +1795,7 @@ def update_transaction_hash(request, request_id):
     """View to update the transaction hash after it's executed on the blockchain."""
     if request.method == 'POST':
         try:
+            print("enterted update_transaction_hash correctly")
             # Get the cancellation request
             cancellation_request = get_object_or_404(PoolCancellationRequest, id=request_id)
             

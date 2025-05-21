@@ -180,7 +180,18 @@
                         alert('Cancellation request submitted successfully!');
                         window.location.href = '{% url "admin_pending_cancellations" %}';
                     } else {
-                        alert('Error submitting cancellation request to the server.');
+                        // Enhanced error logging:
+                        let errorText = 'Error submitting cancellation request to the server.';
+                        try {
+                            const responseBody = await response.text(); // Get raw response body
+                            errorText += `\nStatus: ${response.status} (${response.statusText})\nServer response: ${responseBody}`;
+                            console.error('Server Error Status:', response.status, response.statusText);
+                            console.error('Server Response Body:', responseBody);
+                        } catch (e) {
+                            console.error('Failed to parse response body:', e);
+                            errorText += `\nStatus: ${response.status} (${response.statusText}). Could not read response body.`;
+                        }
+                        alert(errorText);
                     }
                     
                 } catch (error) {
