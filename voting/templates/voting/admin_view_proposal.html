@@ -62,9 +62,9 @@
         <div class="alert alert-info">
             <h6 class="mb-2">Voting Pool Information</h6>
             <p><strong>Category:</strong> President</p>
-            <p><strong>Start Date:</strong> 2025-06-01</p>
-            <p><strong>End Date:</strong> 2025-06-30</p>
-            <p><strong>Current Votes:</strong> 250</p>
+            <p><strong>Start Date:</strong> to be updated</p>
+            <p><strong>End Date:</strong> to be updated</p>
+            <p><strong>Current Votes:</strong> to be updated</p>
         </div>
         {% elif proposal.type == 'Replace Admin' %}
         <!-- Details specific to admin replacement -->
@@ -189,6 +189,13 @@
 <!-- Add MetaMask integration script -->
 <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 <script>
+    // Contract configuration
+    const CONTRACT_ADDRESS = "{{ admin_contract_address }}";
+    const CONTRACT_ABI = JSON.parse('{{ admin_contract_abi|escapejs }}');
+    const PROPOSAL_ID = {{ proposal.blockchain_proposal_id }};
+    console.log("[DEBUG] Raw proposal.blockchain_proposal_id from template: {{ proposal.blockchain_proposal_id|default:'null' }}"); // Raw value
+    console.log("[DEBUG] JavaScript PROPOSAL_ID right after definition:", PROPOSAL_ID, "Type:", typeof PROPOSAL_ID);
+
     document.addEventListener('DOMContentLoaded', function() {
         // Transfer notes to modal forms when opened
         document.getElementById('approveModal').addEventListener('show.bs.modal', function() {
@@ -219,13 +226,69 @@
         // Listen for form submission and handle approval
         const approveForm = document.getElementById('approveForm');
         if (approveForm) {
-            approveForm.addEventListener('submit', function(event) {
-                {% if proposal.can_be_approved %}
-                // Allow form submission for step 1
-                {% else %}
+            approveForm.addEventListener('submit', async function(event) {
                 event.preventDefault();
-                alert('You cannot approve this request because it was either created by you or has already been processed.');
+                
+                {% if proposal.can_be_approved %}
+                    if (!window.ethereum) {
+                        alert('Please install MetaMask to continue.');
+                        return;
+                    }
+
+                    try {
+                        // Request account access
+                        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                        const userAddress = accounts[0];
+
+                        // Create contract instance
+                        const provider = new ethers.providers.Web3Provider(window.ethereum);
+                        const signer = provider.getSigner();
+                        const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+
+                        // Call approveProposal function
+                        console.log('Approving proposal:', PROPOSAL_ID);
+                        const tx = await contract.approveProposal(PROPOSAL_ID);
+                        
+                        // Wait for transaction to be mined
+                        alert('Transaction submitted! Waiting for confirmation...');
+                        const receipt = await tx.wait();
+                        
+                        // Update database with transaction hash
+                        const response = await fetch(`/admin-portal/update-transaction-hash/${PROPOSAL_ID}/`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': '{{ csrf_token }}'
+                            },
+                            body: JSON.stringify({
+                                transaction_hash: receipt.transactionHash
+                            })
+                        });
+
+                        if (response.ok) {
+                            alert('Proposal approved successfully!');
+                            window.location.href = "{% url 'admin_pending_cancellations' %}";
+                        } else {
+                            throw new Error('Failed to update transaction hash');
+                        }
+
+                    } catch (error) {
+                        console.error('Error:', error);
+                        alert('Error: ' + (error.message || 'Failed to approve proposal'));
+                    }
+                {% else %}
+                    alert('You cannot approve this request because it was either created by you or has already been processed.');
                 {% endif %}
+            });
+        }
+
+        // Handle MetaMask account changes
+        if (window.ethereum) {
+            window.ethereum.on('accountsChanged', function(accounts) {
+                if (accounts.length === 0) {
+                    // User disconnected their wallet
+                    alert('Please connect your wallet to continue.');
+                }
             });
         }
     });

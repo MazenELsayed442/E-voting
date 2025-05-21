@@ -155,11 +155,20 @@
                     // Wait for transaction to be mined
                     const receipt = await tx.wait();
                     
+                    // Extract proposalId from ProposalCreated event
+                    const event = receipt.events.find(e => e.event === 'ProposalCreated');
+                    if (!event) {
+                        alert('Could not find ProposalCreated event in transaction receipt.');
+                        return;
+                    }
+                    const blockchainProposalId = event.args.proposalId.toString();
+                    
                     // Transaction was successful, now submit the form to the server
                     const formData = new FormData();
                     formData.append('pool_id', poolId);
                     formData.append('reason', reason);
                     formData.append('transaction_hash', receipt.transactionHash);
+                    formData.append('blockchain_proposal_id', blockchainProposalId);
                     formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
                     
                     const response = await fetch('{% url "admin_submit_cancel_request" %}', {
