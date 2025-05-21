@@ -252,6 +252,9 @@ class PoolCancellationRequest(models.Model):
     # Transaction hash when the cancellation is executed on the blockchain
     transaction_hash = models.CharField(max_length=66, blank=True, null=True)
     
+    # The proposal ID on the blockchain (not the DB ID)
+    blockchain_proposal_id = models.BigIntegerField(null=True, blank=True)
+    
     class Meta:
         verbose_name = "Pool Cancellation Request"
         verbose_name_plural = "Pool Cancellation Requests"

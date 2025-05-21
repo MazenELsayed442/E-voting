@@ -1,46 +1,42 @@
+import sqlite3
 import os
-import django
+## immportant, this file deletes the pending cancel requests and other
+# Connect to the SQLite database
+db_path = 'db.sqlite3'  # Adjust this path if your database is located elsewhere
+conn = sqlite3.connect(db_path)
+cursor = conn.cursor()
 
-# Setup Django environment
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'eVoting.settings')
-django.setup()
+try:
+    # First, let's see what tables exist in the database
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+    tables = cursor.fetchall()
+    print("Available tables in the database:")
+    for table in tables:
+        print(f"- {table[0]}")
 
-# Import the Candidate model and any other relevant models
-from voting.models import Candidate
-from django.core.cache import cache
-from django.db import connection
-
-# Clear all candidates
-candidate_count = Candidate.objects.all().delete()[0]
-print(f"Deleted all {candidate_count} candidates from the database")
-
-# Clear any cached blockchain data
-cache_keys = [
-    'last_blockchain_block',
-    'active_pools', 
-    'pool_categories',
-    'blockchain_data'
-]
-            
-for key in cache_keys:
-    cache.delete(key)
-print("Cleared all blockchain-related cache entries")
-
-# Execute raw SQL to ensure tables are completely clean
-# This is needed because some databases might have related tables or constraints
-with connection.cursor() as cursor:
-    # List tables you want to clean (be cautious with this approach)
+    # List of tables to clean
     tables_to_clean = [
         'voting_candidate',  # Main candidate table
+        'voting_poolcancellationrequest',  # Pool cancellation requests table
     ]
     
+    # Delete data from each table
     for table in tables_to_clean:
         try:
-            # Use TRUNCATE or DELETE depending on database type
             cursor.execute(f"DELETE FROM {table}")
-            print(f"Cleaned table {table}")
+            deleted_count = cursor.rowcount
+            print(f"Deleted {deleted_count} records from {table}")
         except Exception as e:
             print(f"Error cleaning table {table}: {e}")
+    
+    # Commit the changes
+    conn.commit()
+    print("\nDatabase completely cleaned of all voting data.")
 
-print("\nDatabase completely cleaned of all voting data.")
-print("Please restart the application to ensure all caches are reset.") 
+except Exception as e:
+    print(f"An error occurred: {e}")
+    conn.rollback()
+
+finally:
+    # Close the connection
+    conn.close() 

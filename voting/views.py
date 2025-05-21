@@ -1315,7 +1315,7 @@ def admin_cancel_pool(request, pool_id):
     # Get details for the specific pool being cancelled
     from .utils.contract_utils import get_pool_details, get_admin_contract_address, load_abi
     import datetime
-    
+    print("pool id:", pool_id)
     # Try to get pool details from blockchain
     try:
         pool_details = get_pool_details(pool_id)
@@ -1335,7 +1335,7 @@ def admin_cancel_pool(request, pool_id):
         
         # Only show the target pool
         active_pools = [pool]
-        
+    
     except Exception as e:
         # If blockchain access fails, use a fallback for the view
         messages.warning(request, f"Could not retrieve blockchain data: {e}")
@@ -1563,8 +1563,12 @@ def admin_view_proposal(request, proposal_id):
             'status': cancellation_request.status.capitalize(),
             'pool_id': cancellation_request.pool_id,
             'pool_info': pool_info,
-            'can_be_approved': cancellation_request.can_be_approved_by(request.user)
+            'can_be_approved': cancellation_request.can_be_approved_by(request.user),
+            'blockchain_proposal_id': cancellation_request.blockchain_proposal_id
         }
+
+        # <<< ADD THIS PRINT STATEMENT FOR DEBUGGING >>>
+        print(f"[DEBUG] In admin_view_proposal for Django ID {cancellation_request.id}: blockchain_proposal_id is {cancellation_request.blockchain_proposal_id}, type: {type(cancellation_request.blockchain_proposal_id)}")
         
         context = {
             'active_tab': 'proposals',
@@ -1574,19 +1578,26 @@ def admin_view_proposal(request, proposal_id):
         }
         
     except Exception as e:
-        # If anything goes wrong, use placeholder data
+        print("\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        print(f"[ERROR] EXCEPTION BLOCK ENTERED in admin_view_proposal for ID {proposal_id}.")
+        print(f"[ERROR] The exception was: {str(e)}")
+        import traceback
+        traceback.print_exc() # Print full traceback
+        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n")
+
         messages.error(request, f"Error loading proposal details: {str(e)}")
-        proposal = {
+        proposal_fallback_data = {
             'id': proposal_id,
             'type': 'Cancel Pool',
             'requester': 'Unknown',
             'created_at': 'N/A',
             'details': 'Error loading proposal details.',
-            'status': 'Error'
+            'status': 'Error',
+            'blockchain_proposal_id': -999 # Using an obvious placeholder
         }
         context = {
             'active_tab': 'proposals',
-            'proposal': proposal
+            'proposal': proposal_fallback_data
         }
         
     return render(request, "voting/admin_view_proposal.html", context)
@@ -1601,11 +1612,11 @@ def admin_submit_cancel_request(request):
         reason = request.POST.get('reason')
         # Get transaction hash if available (when submitted via MetaMask)
         transaction_hash = request.POST.get('transaction_hash')
-        
+        # Get blockchain proposal ID from the form
+        blockchain_proposal_id = request.POST.get('blockchain_proposal_id')
         if not pool_id or not reason:
             messages.error(request, "❌ Pool ID and reason are required.")
             return redirect('admin_cancel_pool')
-        
         try:
             # Create a new pool cancellation request
             cancellation_request = PoolCancellationRequest.objects.create(
@@ -1613,15 +1624,14 @@ def admin_submit_cancel_request(request):
                 reason=reason,
                 initiator=request.user,
                 status='pending',
-                transaction_hash=transaction_hash
+                transaction_hash=transaction_hash,
+                blockchain_proposal_id=blockchain_proposal_id
             )
-            
             messages.success(request, f"✅ Cancel request for pool #{pool_id} submitted successfully. Waiting for another admin to approve.")
             return redirect('admin_pending_cancellations')
         except Exception as e:
             messages.error(request, f"❌ Failed to create cancellation request: {str(e)}")
             return redirect('admin_cancel_pool')
-    
     return redirect('admin_dashboard')
 
 @admin_required
@@ -1770,8 +1780,8 @@ def admin_approve_proposal(request):
         
         if not proposal_id:
             messages.error(request, "❌ Proposal ID is required.")
+            print("inside admin view proposal, couldn't find proposal id")
             return redirect('admin_proposals')
-        
         try:
             # For now, we're only handling pool cancellation requests
             cancellation_request = PoolCancellationRequest.objects.get(id=proposal_id)
