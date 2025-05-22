@@ -22,6 +22,7 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render, get_object_or_404
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
+from datetime import datetime, timedelta
 
 # Local application imports
 from .forms import CustomUserCreationForm, LoginForm
@@ -1392,18 +1393,47 @@ def admin_replace_admin(request):
 @admin_required
 def admin_proposals(request):
     """Page to review and approve/reject proposals."""
-    # Placeholder data
+    # استخراج طلبات الإلغاء من قاعدة البيانات
+    from .models import CancellationRequest
+    
+    # الحصول على جميع طلبات الإلغاء مرتبة من الأحدث إلى الأقدم
+    cancellation_requests = CancellationRequest.objects.all().order_by('-created_at')
+    
+    # الاستعلام عن المقترحات المنفذة في آخر 7 أيام
+    seven_days_ago = datetime.now() - timedelta(days=7)
+    executed_proposals = CancellationRequest.objects.filter(
+        is_executed=True, 
+        created_at__gte=seven_days_ago
+    ).order_by('-created_at')
+    
+    proposals = []
+    
+    # تحويل طلبات الإلغاء إلى تنسيق المقترحات
+    for req in cancellation_requests:
+        proposals.append({
+            'id': req.id, 
+            'type': 'Cancel Pool', 
+            'requester': req.requested_by.email,
+            'created_at': req.created_at.strftime('%Y-%m-%d'),
+            'details': f'Request to cancel pool #{req.pool_id}. Reason: {req.reason}',
+            'status': 'Executed' if req.is_executed else 'Pending'
+        })
+    
+    # إذا لم توجد طلبات، يمكن إضافة مثال توضيحي (اختياري)
+    if not proposals:
+        proposals = [{
+            'id': 0, 
+            'type': 'Cancel Pool (Example)', 
+            'requester': 'No active requests',
+            'created_at': '-----',
+            'details': 'No cancellation requests found.',
+            'status': 'Pending'
+        }]
+    
     context = {
         'active_tab': 'proposals',
-        'proposals': [
-            {
-                'id': 1, 
-                'type': 'Cancel Pool', 
-                'requester': 'admin@example.com',
-                'created_at': '2025-05-28',
-                'details': 'Request to cancel President voting pool due to technical issues.'
-            },
-        ]
+        'proposals': proposals,
+        'executed_proposals': executed_proposals.exists()
     }
     return render(request, "voting/admin_proposals.html", context)
 
