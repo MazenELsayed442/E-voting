@@ -277,7 +277,7 @@ class PoolCancellationRequest(models.Model):
         
         # This gets called in template context, so we need to check against the current user
         # We need to use a method that doesn't require request object
-        # In a template, this would be used as: {% if request.can_be_approved_by:user %}
+        # In a template, this would be used as: {% if request.can_be_approved_by %}
         return self.status == 'pending'
     
     def can_be_approved_by(self, user):

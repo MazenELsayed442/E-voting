@@ -4,206 +4,183 @@
 {% block admin_title %}Review Proposal{% endblock %}
 
 {% block admin_content %}
-<div class="container">
-    <div class="row mb-4">
-        <div class="col-md-12">
-            <div class="card">
-                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                    <h4 class="mb-0">Review Proposal</h4>
-                    <a href="{% url 'admin_proposals' %}" class="btn btn-light btn-sm">
-                        <i class="bi bi-arrow-left"></i> Back to Proposals
-                    </a>
-                </div>
-                <div class="card-body">
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="mb-0">{{ proposal.type }} Proposal</h3>
+        <span class="badge bg-warning">Pending Review</span>
+    </div>
+    <div>
+        <a href="{% url 'admin_proposals' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i> Back to Proposals
+        </a>
+    </div>
+</div>
 
-                    <!-- BEGIN: cancel_pool_feature block -->
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <h5 class="mb-0">Proposal Details</h5>
-                        </div>
-                        <div class="card-body">
-                            <div class="row mb-4">
-                                <div class="col-md-6">
-                                    <table class="table table-borderless">
-                                        <tr>
-                                            <th style="width: 35%">Proposal ID:</th>
-                                            <td>{{ proposal.id }}</td>
-                                        </tr>
-                                        <tr>
-                                            <th>Type:</th>
-                                            <td>{{ proposal.type }}</td>
-                                        </tr>
-                                        <tr>
-                                            <th>Requested By:</th>
-                                            <td>{{ proposal.requester }}</td>
-                                        </tr>
-                                    </table>
-                                </div>
-                                <div class="col-md-6">
-                                    <table class="table table-borderless">
-                                        <tr>
-                                            <th style="width: 35%">Date Submitted:</th>
-                                            <td>{{ proposal.created_at }}</td>
-                                        </tr>
-                                        <tr>
-                                            <th>Status:</th>
-                                            <td><span class="badge bg-warning">{{ proposal.status }}</span></td>
-                                        </tr>
-                                    </table>
-                                </div>
-                            </div>
-                            
-                            <div class="proposal-content p-3 mb-4 bg-light rounded">
-                                <h6 class="mb-3">Reason for Request</h6>
-                                <p>{{ proposal.details }}</p>
-                            </div>
-                            
-                            {% if proposal.type == 'Cancel Pool' %}
-                            <!-- Details specific to pool cancellation -->
-                            <div class="alert alert-info">
-                                <h6 class="mb-2">Voting Pool Information</h6>
-                                <p><strong>Category:</strong> {{ proposal.pool_category }}</p>
-                                <p><strong>Start Date:</strong> {{ proposal.pool_start_date }}</p>
-                                <p><strong>End Date:</strong> {{ proposal.pool_end_date }}</p>
-                                <p><strong>Current Votes:</strong> {{ proposal.pool_current_votes }}</p>
-                            </div>
-                            {% elif proposal.type == 'Replace Admin' %}
-                            <!-- Details specific to admin replacement -->
-                            <div class="alert alert-info">
-                                <h6 class="mb-2">Admin Replacement Information</h6>
-                                <p><strong>Admin to Replace:</strong> {{ proposal.old_admin }}</p>
-                                <p><strong>Current Email:</strong> {{ proposal.old_admin_email }}</p>
-                                <p><strong>Proposed Replacement:</strong> {{ proposal.new_admin }} ({{ proposal.new_admin_email }})</p>
-                            </div>
-                            {% endif %}
-                        </div>
-                    </div>
-                    <!-- END: cancel_pool_feature block -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Proposal Details</h5>
+    </div>
+    <div class="card-body">
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <table class="table table-borderless">
+                    <tr>
+                        <th style="width: 35%">Proposal ID:</th>
+                        <td>{{ proposal.id }}</td>
+                    </tr>
+                    <tr>
+                        <th>Type:</th>
+                        <td>{{ proposal.type }}</td>
+                    </tr>
+                    <tr>
+                        <th>Requested By:</th>
+                        <td>{{ proposal.requester }}</td>
+                    </tr>
+                </table>
+            </div>
+            <div class="col-md-6">
+                <table class="table table-borderless">
+                    <tr>
+                        <th style="width: 35%">Date Submitted:</th>
+                        <td>{{ proposal.created_at }}</td>
+                    </tr>
+                    <tr>
+                        <th>Status:</th>
+                        <td><span class="badge bg-warning">{{ proposal.status }}</span></td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        
+        <div class="proposal-content p-3 mb-4 bg-light rounded">
+            <h6 class="mb-3">Reason for Request</h6>
+            <p>{{ proposal.details }}</p>
+        </div>
+        
+        {% if proposal.type == 'Cancel Pool' %}
+        <!-- Details specific to pool cancellation -->
+        <div class="alert alert-info">
+            <h6 class="mb-2">Voting Pool Information</h6>
+            <p><strong>Category:</strong> President</p>
+            <p><strong>Start Date:</strong> to be updated</p>
+            <p><strong>End Date:</strong> to be updated</p>
+            <p><strong>Current Votes:</strong> to be updated</p>
+        </div>
+        {% elif proposal.type == 'Replace Admin' %}
+        <!-- Details specific to admin replacement -->
+        <div class="alert alert-info">
+            <h6 class="mb-2">Admin Replacement Information</h6>
+            <p><strong>Admin to Replace:</strong> Admin 2</p>
+            <p><strong>Current Email:</strong> admin2@example.com</p>
+            <p><strong>Proposed Replacement:</strong> User 1 (user1@example.com)</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
 
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Blockchain Verification</h5>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-warning mb-3">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            <strong>Important:</strong> Your decision will be recorded on the blockchain and cannot be changed once submitted.
+        </div>
+        
+        <div class="mb-4">
+            <h6>Your Wallet Information</h6>
+            <p>
+                {% if user.wallet_address %}
+                <span class="badge bg-success me-2">Connected</span>
+                <span class="font-monospace">{{ user.wallet_address }}</span>
+                {% else %}
+                <span class="badge bg-danger me-2">Not Connected</span>
+                <p class="text-danger">You need to connect your wallet before you can approve or reject this proposal.</p>
+                <a href="{% url 'wallet_connect' %}" class="btn btn-primary btn-sm">
+                    <i class="bi bi-wallet2 me-1"></i> Connect Wallet
+                </a>
+                {% endif %}
+            </p>
+        </div>
+    </div>
+</div>
 
-                    <h5 class="mt-4 mb-3">Proposal Details</h5>
-                    <div class="table-responsive">
-                        <table class="table table-bordered">
-                            <tbody>
-                                <tr>
-                                    <th style="width: 30%">Proposal ID:</th>
-                                    <td>{{ proposal.id }}</td>
-                                </tr>
-                                <tr>
-                                    <th>Type:</th>
-                                    <td>{{ proposal.type }}</td>
-                                </tr>
-                                <tr>
-                                    <th>Requested By:</th>
-                                    <td>{{ proposal.requester }}</td>
-                                </tr>
-                                <tr>
-                                    <th>Date Submitted:</th>
-                                    <td>{{ proposal.created_at }}</td>
-                                </tr>
-                                <tr>
-                                    <th>Status:</th>
-                                    <td>
-                                        {% if proposal.status == 'Pending' %}
-                                        <span class="badge bg-warning">Pending</span>
-                                        {% elif proposal.status == 'Executed' %}
-                                        <span class="badge bg-success">Executed</span>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">Your Decision</h5>
+    </div>
+    <div class="card-body">
+        <div class="mb-3">
+            <label for="decision-notes" class="form-label">Notes (Optional)</label>
+            <textarea id="decision-notes" class="form-control" rows="3" placeholder="Add any notes about your decision here..."></textarea>
+        </div>
+        
+        <div class="d-flex justify-content-between">
+            <button type="button" class="btn btn-danger" {% if not user.wallet_address %}disabled{% endif %} data-bs-toggle="modal" data-bs-target="#rejectModal">
+                <i class="bi bi-x-circle me-1"></i> Reject Proposal
+            </button>
+            <button type="button" class="btn btn-success" {% if not user.wallet_address %}disabled{% endif %} data-bs-toggle="modal" data-bs-target="#approveModal">
+                <i class="bi bi-check-circle me-1"></i> Approve Proposal
+            </button>
+        </div>
+    </div>
+</div>
 
-                    <h5 class="mt-4 mb-3">Reason for Request</h5>
-                    <div class="p-3 bg-light rounded">
-                        <p>{{ proposal.details }}</p>
-                    </div>
-
-                    <!-- Approve Modal -->
-                    <div class="modal fade" id="approveModal" tabindex="-1" aria-labelledby="approveModalLabel" aria-hidden="true">
-                        <div class="modal-dialog">
-                            <div class="modal-content">
-                                <div class="modal-header bg-success text-white">
-                                    <h5 class="modal-title" id="approveModalLabel">Confirm Approval</h5>
-                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                                </div>
-                                <div class="modal-body">
-                                    <p>Are you sure you want to approve this {{ proposal.type }} proposal?</p>
-                                    <p><strong>This action requires two steps:</strong></p>
-                                    <ol>
-                                        <li>Your approval will be recorded in the database</li>
-                                        <li>You will need to sign the transaction with MetaMask to record it on the blockchain</li>
-                                    </ol>
-                                    <p><strong>This action cannot be undone.</strong></p>
-                                </div>
-                                <div class="modal-footer">
-                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                    <form action="{% url 'admin_approve_proposal' %}" method="post" id="approveForm">
-                                        {% csrf_token %}
-                                        <input type="hidden" name="proposal_id" value="{{ proposal.id }}">
-                                        <input type="hidden" name="notes" id="approve-notes">
-                                        <button type="submit" class="btn btn-success">Approve (Step 1)</button>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="mt-4 card">
-                        <div class="card-header">
-                            <h5 class="mb-0">Blockchain Verification</h5>
-                        </div>
-                        <div class="card-body">
-                            <div class="alert alert-warning">
-                                <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                                <strong>Important:</strong> Your decision will be recorded on the blockchain and cannot be changed once submitted.
-                            </div>
-
-                            <div class="mt-3">
-                                <p><strong>Your Wallet Information</strong></p>
-                                <div class="badge bg-success p-2 mb-3">
-                                    <i class="bi bi-wallet2"></i> Connected: 
-                                    <span class="wallet-address text-truncate" style="max-width: 220px; display: inline-block; vertical-align: middle;">
-                                        {% if user.wallet_address %}{{ user.wallet_address }}{% else %}Not connected{% endif %}
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div class="form-group mt-3">
-                                <label for="notesTextarea">Notes (Optional)</label>
-                                <textarea class="form-control" id="notesTextarea" rows="3" placeholder="Add any notes about your decision here..."></textarea>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="mt-4 d-flex justify-content-between">
-                        <button type="button" class="btn btn-danger" id="rejectBtn">
-                            <i class="bi bi-x-circle me-1"></i> Reject Proposal
-                        </button>
-                        <button type="button" class="btn btn-success" id="approveBtn">
-                            <i class="bi bi-check-circle me-1"></i> Approve Proposal
-                        </button>
-                    </div>
-                </div>
+<!-- Approve Modal -->
+<div class="modal fade" id="approveModal" tabindex="-1" aria-labelledby="approveModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="approveModalLabel">Confirm Approval</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to approve this {{ proposal.type }} proposal?</p>
+                <p><strong>This action requires two steps:</strong></p>
+                <ol>
+                    <li>Your approval will be recorded in the database</li>
+                    <li>You will need to sign the transaction with MetaMask to record it on the blockchain</li>
+                </ol>
+                <p><strong>This action cannot be undone.</strong></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form action="{% url 'admin_approve_proposal' %}" method="post" id="approveForm">
+                    {% csrf_token %}
+                    <input type="hidden" name="proposal_id" value="{{ proposal.id }}">
+                    <input type="hidden" name="notes" id="approve-notes">
+                    <button type="submit" class="btn btn-success">Approve (Step 1)</button>
+                </form>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Modal for status updates -->
-<div class="modal fade" id="statusModal" tabindex="-1" aria-labelledby="statusModalLabel" aria-hidden="true">
+<!-- Reject Modal -->
+<div class="modal fade" id="rejectModal" tabindex="-1" aria-labelledby="rejectModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="statusModalLabel">Transaction Status</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="rejectModalLabel">Confirm Rejection</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body" id="status-message">
-                Preparing transaction...
+            <div class="modal-body">
+                <p>Are you sure you want to reject this {{ proposal.type }} proposal?</p>
+                <div class="mb-3">
+                    <label for="reject-reason" class="form-label">Reason for Rejection (Required)</label>
+                    <textarea id="reject-reason" class="form-control" rows="3" required></textarea>
+                </div>
             </div>
-            <div class="modal-footer" id="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form action="{% url 'admin_reject_proposal' %}" method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="proposal_id" value="{{ proposal.id }}">
+                    <input type="hidden" name="reason" id="hidden-reject-reason">
+                    <input type="hidden" name="notes" id="reject-notes">
+                    <button type="submit" class="btn btn-danger" id="confirm-reject-btn">Confirm Rejection</button>
+                </form>
             </div>
         </div>
     </div>
@@ -212,19 +189,134 @@
 <!-- Add MetaMask integration script -->
 <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 <script>
-    // Contract configuration (cancel_pool_feature)
+    // Contract configuration
     const CONTRACT_ADDRESS = "{{ admin_contract_address }}";
     const CONTRACT_ABI = JSON.parse('{{ admin_contract_abi|escapejs }}');
     const PROPOSAL_ID = {{ proposal.blockchain_proposal_id }};
-    console.log("[DEBUG] Raw proposal.blockchain_proposal_id from template: {{ proposal.blockchain_proposal_id|default:'null' }}");
+    console.log("[DEBUG] Raw proposal.blockchain_proposal_id from template: {{ proposal.blockchain_proposal_id|default:'null' }}"); // Raw value
     console.log("[DEBUG] JavaScript PROPOSAL_ID right after definition:", PROPOSAL_ID, "Type:", typeof PROPOSAL_ID);
 
     document.addEventListener('DOMContentLoaded', function() {
-        // … (باقي السكربت بدون تغيير)
-    });
+        // Transfer notes to modal forms when opened
+        document.getElementById('approveModal').addEventListener('show.bs.modal', function() {
+            document.getElementById('approve-notes').value = document.getElementById('decision-notes').value;
+        });
+        
+        document.getElementById('rejectModal').addEventListener('show.bs.modal', function() {
+            document.getElementById('reject-notes').value = document.getElementById('decision-notes').value;
+        });
+        
+        // Validation for reject reason
+        const rejectReasonInput = document.getElementById('reject-reason');
+        const hiddenRejectReason = document.getElementById('hidden-reject-reason');
+        const confirmRejectBtn = document.getElementById('confirm-reject-btn');
+        
+        confirmRejectBtn.addEventListener('click', function(event) {
+            const rejectReason = rejectReasonInput.value.trim();
+            if (!rejectReason) {
+                event.preventDefault();
+                alert('Please provide a reason for rejection.');
+                return false;
+            }
+            
+            hiddenRejectReason.value = rejectReason;
+            return true;
+        });
+        
+        // Listen for form submission and handle approval
+        const approveForm = document.getElementById('approveForm');
+        if (approveForm) {
+            approveForm.addEventListener('submit', async function(event) {
+                event.preventDefault();
+                
+                {% if proposal.can_be_approved %}
+                    if (!window.ethereum) {
+                        alert('Please install MetaMask to continue.');
+                        return;
+                    }
 
-    async function handleApproval() {
-        // … (باقي الدوال بدون تغيير)
-    }
+                    try {
+                        // Request account access
+                        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                        const userAddress = accounts[0];
+
+                        // Create contract instance
+                        const provider = new ethers.providers.Web3Provider(window.ethereum);
+                        const signer = provider.getSigner();
+                        const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+
+                        // Call approveProposal function
+                        console.log('Approving proposal:', PROPOSAL_ID);
+                        const tx = await contract.approveProposal(PROPOSAL_ID);
+                        
+                        // Wait for transaction to be mined
+                        alert('Transaction submitted! Waiting for confirmation...');
+                        const receipt = await tx.wait();
+                        
+                        // Update database with transaction hash
+                        // Use proposal.id (Django DB ID) for this URL
+                        const djangoProposalDbId = {{ proposal.id }};
+                        console.log(`[DEBUG] Using Django DB ID for update-transaction-hash: ${djangoProposalDbId}`);
+
+                        const response = await fetch(`/update-transaction-hash/${djangoProposalDbId}/`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': '{{ csrf_token }}'
+                            },
+                            body: JSON.stringify({
+                                transaction_hash: receipt.transactionHash
+                            })
+                        });
+
+                        if (response.ok) {
+                            alert('Proposal approved successfully!');
+                            window.location.href = "{% url 'admin_pending_cancellations' %}";
+                        } else {
+                            // Enhanced error logging:
+                            let errorText = 'Failed to update transaction hash.';
+                            try {
+                                const responseBody = await response.text(); // Get raw response body
+                                errorText += `\nStatus: ${response.status} (${response.statusText})\nServer response: ${responseBody}`;
+                                console.error('Server Error Status (update-transaction-hash):', response.status, response.statusText);
+                                console.error('Server Response Body (update-transaction-hash):', responseBody);
+                            } catch (e) {
+                                console.error('Failed to parse response body (update-transaction-hash):', e);
+                                errorText += `\nStatus: ${response.status} (${response.statusText}). Could not read response body.`;
+                            }
+                            // Instead of throwing an error which might be caught by an outer try/catch,
+                            // display the alert directly here to ensure the user sees the detailed message.
+                            alert(errorText);
+                        }
+
+                    } catch (error) {
+                        console.error('Error:', error);
+                        let detailedErrorMessage = 'Failed to approve proposal.';
+                        if (error.message) {
+                            detailedErrorMessage += `\nDetails: ${error.message}`;
+                        }
+                        if (error.data && error.data.message) { // For MetaMask/JSON-RPC errors
+                            detailedErrorMessage += `\nReason: ${error.data.message}`;
+                        } else if (error.reason) { // Ethers.js often puts revert reasons here
+                            detailedErrorMessage += `\nReason: ${error.reason}`;
+                        }
+                        alert(detailedErrorMessage);
+                    }
+                {% else %}
+                    alert('You cannot approve this request because it was either created by you or has already been processed.');
+                {% endif %}
+            });
+        }
+
+        // Handle MetaMask account changes
+        if (window.ethereum) {
+            window.ethereum.on('accountsChanged', function(accounts) {
+                if (accounts.length === 0) {
+                    // User disconnected their wallet
+                    alert('Please connect your wallet to continue.');
+                }
+            });
+        }
+    });
 </script>
-{% endblock %}
+{% endblock %} 
