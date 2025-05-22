@@ -1085,18 +1085,34 @@ def admin_dashboard(request):
         })
     
     # Get pending cancellation requests
-    pending_cancellation_requests = PoolCancellationRequest.objects.filter(status='pending')
+    pending_cancellation_requests = PoolCancellationRequest.objects.all()
     pending_proposals = pending_cancellation_requests.count()
     
     # Prepare proposals for the UI
     pending_requests = []
     for req in pending_cancellation_requests:
+        approval_status_val = "Unknown"
+        
+        if req.status != 'pending':
+            # For any status that is not 'pending', we can consider it handled in this context.
+            # You could be more specific e.g. req.get_status_display() if you want to show "Approved", "Rejected", etc.
+            approval_status_val = f"Handled ({req.get_status_display()})"
+        else:
+            # Original logic for pending requests
+            if req.can_be_approved_by(request.user):
+                approval_status_val = "Awaiting your approval"
+            elif req.initiator == request.user:
+                approval_status_val = "Waiting for other admin (you initiated)"
+            else:
+                approval_status_val = "Waiting for other admin"
+
         pending_requests.append({
             'id': req.id,
             'type': 'Cancel Pool',
-            'proposer': req.initiator.username,
-            'approvals': '1/2',  # Always 1/2 since it's waiting for a second approval
-            'pool_id': req.pool_id
+            'proposer': req.initiator.username if req.initiator else 'System',
+            'pool_id': req.pool_id,
+            'blockchain_proposal_id': req.blockchain_proposal_id,
+            'approval_status_text': approval_status_val
         })
     
     context = {

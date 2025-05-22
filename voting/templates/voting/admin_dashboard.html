@@ -232,7 +232,7 @@
                         <th>ID</th>
                         <th>Type</th>
                         <th>Proposed By</th>
-                        <th>Approvals</th>
+                        <th>Approval Status</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -242,7 +242,19 @@
                         <td>{{ req.id }}</td>
                         <td>{{ req.type }}</td>
                         <td>{{ req.proposer }}</td>
-                        <td>{{ req.approvals }}/3</td>
+                        <td>
+                            {% if 'Awaiting your approval' in req.approval_status_text %}
+                            <span class="badge bg-warning text-dark">{{ req.approval_status_text }}</span>
+                            {% elif 'Waiting for other admin (you initiated)' in req.approval_status_text %}
+                            <span class="badge bg-info">{{ req.approval_status_text }}</span>
+                            {% elif 'Waiting for other admin' in req.approval_status_text %}
+                            <span class="badge bg-secondary">{{ req.approval_status_text }}</span>
+                            {% elif 'Handled' in req.approval_status_text %}
+                            <span class="badge bg-success">{{ req.approval_status_text }}</span>
+                            {% else %}
+                            <span class="badge bg-primary">{{ req.approval_status_text }}</span>
+                            {% endif %}
+                        </td>
                         <td>
                             <a href="{% url 'admin_view_proposal' req.id %}" class="btn btn-sm btn-primary">Review</a>
                         </td>
