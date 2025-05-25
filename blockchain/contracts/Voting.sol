@@ -26,13 +26,16 @@ contract Voting {
 
     IVotingAdmin public immutable votingAdminContract; // Address of the VotingAdmin contract (set at deployment)
 
+    // --- NEW: Allowed Voters List ---
+    mapping(address => bool) public allowedVoters; // Voter address => isAllowed
+
     // --- Voting Pool Data Structures ---
     enum PoolStatus { Pending, Active, Cancelled, Ended }
 
     struct VotingPool {
-        uint256 id;              // Unique identifier for the pool
-        string category;         // Name or category of the vote (e.g., "President")
-        string[] candidates;     // List of candidates for this pool
+        uint256 id;           // Unique identifier for the pool
+        string category;       // Name or category of the vote (e.g., "President")
+        string[] candidates;   // List of candidates for this pool
         uint256 startTime;       // Timestamp when voting begins
         uint256 endTime;         // Timestamp when voting ends
         PoolStatus status;       // Current status of the pool (Pending, Active, etc.)
@@ -49,6 +52,11 @@ contract Voting {
     event PoolCancelled(uint256 indexed poolId);
     event PoolEnded(uint256 indexed poolId);
     event Voted(uint256 indexed poolId, address indexed voter, string category, string candidate, uint256 newVoteCount);
+
+    // --- NEW: Allowed Voter Events ---
+    event VoterAddedToAllowedList(address indexed voterAddress);
+    event VoterRemovedFromAllowedList(address indexed voterAddress);
+
 
     // --- Modifiers ---
 
@@ -89,6 +97,39 @@ contract Voting {
     constructor(address _votingAdminAddress) {
         require(_votingAdminAddress != address(0), "Voting: Invalid admin contract address");
         votingAdminContract = IVotingAdmin(_votingAdminAddress);
+    }
+
+    // --- NEW: Allowed Voter Management Functions (Admin Only) ---
+
+    /**
+     * @notice Adds a voter to the allowed list. Only callable by a registered admin.
+     * @param _voter The address of the voter to add.
+     */
+    function addVoter(address _voter) external onlyAnAdmin {
+        require(_voter != address(0), "Voting: Voter address cannot be zero");
+        require(!allowedVoters[_voter], "Voting: Voter already in allowed list");
+        allowedVoters[_voter] = true;
+        emit VoterAddedToAllowedList(_voter);
+    }
+
+    /**
+     * @notice Removes a voter from the allowed list. Only callable by a registered admin.
+     * @param _voter The address of the voter to remove.
+     */
+    function removeVoter(address _voter) external onlyAnAdmin {
+        require(_voter != address(0), "Voting: Voter address cannot be zero");
+        require(allowedVoters[_voter], "Voting: Voter not in allowed list");
+        allowedVoters[_voter] = false;
+        emit VoterRemovedFromAllowedList(_voter);
+    }
+
+    /**
+     * @notice Checks if a voter is in the allowed list.
+     * @param _voter The address of the voter to check.
+     * @return True if the voter is allowed, false otherwise.
+     */
+    function isVoterAllowed(address _voter) external view returns (bool) {
+        return allowedVoters[_voter];
     }
 
     // --- Pool Management Functions ---
@@ -182,6 +223,9 @@ contract Voting {
         require(!isCallerAdmin, "Voting: Admins are not allowed to vote");
         // --- END: MODIFICATION TO PREVENT ADMINS FROM VOTING ---
 
+        // --- NEW: Check if voter is in the allowed list ---
+        require(allowedVoters[msg.sender], "Voting: Voter not on allowed list");
+
         VotingPool storage pool = votingPools[_poolId];
         require(pool.id == _poolId || (_poolId == 0 && bytes(pool.category).length != 0), "Voting: Pool does not exist"); // Check pool exists
         require(
@@ -189,6 +233,12 @@ contract Voting {
             (pool.status == PoolStatus.Pending && block.timestamp >= pool.startTime && block.timestamp < pool.endTime),
             "Voting: Voting pool is not active"
         );
+        // Auto-activate pending pool if start time is reached
+        if (pool.status == PoolStatus.Pending && block.timestamp >= pool.startTime) {
+            pool.status = PoolStatus.Active;
+        }
+        require(pool.status == PoolStatus.Active, "Voting: Voting pool is not active (after pending check)"); // Re-check status
+
         require(block.timestamp >= pool.startTime, "Voting: Voting period has not started yet");
         require(block.timestamp < pool.endTime, "Voting: Voting period has ended");
         require(!pool.hasVoted[msg.sender], "Voting: Address has already voted in this pool");
@@ -248,13 +298,24 @@ contract Voting {
     {
         // Accessing non-existent poolId will return default values (0, "", empty array, 0, 0, PoolStatus.Pending)
         VotingPool storage pool = votingPools[_poolId];
+        // Ensure pool status is updated if it was pending and start time has passed
+        // This is a view function, so it cannot change state. 
+        // For accurate status, ensure endPoolIfExpired or the vote function has been called.
+        // Or, if it's critical for this view, recalculate status without writing to storage:
+        PoolStatus currentStatus = pool.status;
+        if (pool.status == PoolStatus.Pending && block.timestamp >= pool.startTime && block.timestamp < pool.endTime) {
+            currentStatus = PoolStatus.Active;
+        } else if (pool.status == PoolStatus.Active && block.timestamp >= pool.endTime) {
+            currentStatus = PoolStatus.Ended;
+        }
+        
         return (
             pool.id,
             pool.category,
             pool.candidates,
             pool.startTime,
             pool.endTime,
-            pool.status
+            currentStatus // Return potentially re-evaluated status
         );
     }
 
