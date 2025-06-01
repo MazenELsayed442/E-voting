@@ -129,6 +129,22 @@
             margin-right: 0.4rem;
         }
 
+        .username-display {
+            background-color: rgba(255, 255, 255, 0.15);
+            color: white;
+            font-weight: 500;
+            border-radius: 6px;
+            padding: 0.6rem 1rem;
+            margin-right: 0.5rem;
+            display: flex;
+            align-items: center;
+        }
+        
+        .username-display i {
+            color: #ffcc00;
+            margin-right: 0.4rem;
+        }
+
         nav .btn-auth {
             background-color: white;
             color: #1e3c72;
@@ -212,13 +228,14 @@
                         </a>
                         {% endif %}
                         
-                        <span class="nav-link user-info">
-                            <i class="bi bi-person-circle"></i>{{ user.username }}
-                        </span>
-                        
-                        <a class="nav-link" href="{% url 'logout' %}">
-                            <i class="bi bi-box-arrow-right"></i>Sign out
-                        </a>
+                        <div class="ms-auto d-flex align-items-center">
+                            <span class="username-display">
+                                <i class="bi bi-person-circle"></i> {{ user.username }}
+                            </span>
+                            <a class="nav-link" href="{% url 'logout' %}">
+                                <i class="bi bi-box-arrow-right"></i>Sign out
+                            </a>
+                        </div>
                     {% else %}
                         <a class="btn-auth" href="{% url 'login' %}">
                             <i class="bi bi-box-arrow-in-right"></i>Login
