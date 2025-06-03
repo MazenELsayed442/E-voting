@@ -27,7 +27,7 @@ from datetime import datetime, timedelta
 
 # Local application imports
 from .forms import CustomUserCreationForm, LoginForm
-from .models import Candidate, CustomUser, Voter, PoolCancellationRequest
+from .models import Candidate, CustomUser, Voter, PoolCancellationRequest, AdminReplacementRequest
 from .utils.contract_utils import get_vote_count, submit_vote, get_web3, get_contract, get_pool_details, get_pool_count, get_voting_contract, get_admin_contract, get_voting_contract_address, get_admin_contract_address, load_abi
 from .utils.blockchain_monitor import BlockchainMonitor
 
@@ -1377,17 +1377,17 @@ def admin_cancel_pool(request, pool_id):
 @admin_required
 def admin_replace_admin(request):
     """Interface to request admin replacement."""
-    # Placeholder data
+    
+    # Fetch actual admins from the database
+    admins = CustomUser.objects.filter(user_type='admin').exclude(id=request.user.id)
+    
+    # Fetch potential candidates (users with voter type who could become admins)
+    candidates = CustomUser.objects.filter(user_type='voter', is_active=True, is_verified=True)
+    
     context = {
         'active_tab': 'replace_admin',
-        'admins': [
-            {'id': 1, 'username': 'Admin 1', 'email': 'admin1@example.com', 'wallet_address': '0x1234567890abcdef1234567890abcdef12345678'},
-            {'id': 2, 'username': 'Admin 2', 'email': 'admin2@example.com', 'wallet_address': '0xabcdef1234567890abcdef1234567890abcdef12'},
-        ],
-        'candidates': [
-            {'id': 1, 'username': 'User 1', 'email': 'user1@example.com'},
-            {'id': 2, 'username': 'User 2', 'email': 'user2@example.com'},
-        ]
+        'admins': admins,
+        'candidates': candidates
     }
     return render(request, "voting/admin_replace_admin.html", context)
 
@@ -1399,6 +1399,9 @@ def admin_proposals(request):
     
     # الحصول على جميع طلبات الإلغاء مرتبة من الأحدث إلى الأقدم
     cancellation_requests = CancellationRequest.objects.all().order_by('-created_at')
+    
+    # Get admin replacement requests
+    replacement_requests = AdminReplacementRequest.objects.all().order_by('-created_at')
     
     # الاستعلام عن المقترحات المنفذة في آخر 7 أيام
     seven_days_ago = datetime.now() - timedelta(days=7)
@@ -1420,15 +1423,29 @@ def admin_proposals(request):
             'status': 'Executed' if req.is_executed else 'Pending'
         })
     
+    # Add admin replacement requests to proposals
+    for req in replacement_requests:
+        proposals.append({
+            'id': req.id,
+            'type': 'Replace Admin',
+            'requester': req.initiator.email,
+            'created_at': req.created_at.strftime('%Y-%m-%d'),
+            'details': f'Request to replace {req.admin_to_replace.username} with {req.replacement_candidate.username}. Reason: {req.reason}',
+            'status': req.get_status_display()
+        })
+    
+    # Sort all proposals by creation date (newest first)
+    proposals.sort(key=lambda x: x['created_at'], reverse=True)
+    
     # إذا لم توجد طلبات، يمكن إضافة مثال توضيحي (اختياري)
     if not proposals:
         proposals = [{
             'id': 0, 
-            'type': 'Cancel Pool (Example)', 
-            'requester': 'No active requests',
+            'type': 'No Active Requests', 
+            'requester': 'System',
             'created_at': '-----',
-            'details': 'No cancellation requests found.',
-            'status': 'Pending'
+            'details': 'No cancellation or replacement requests found.',
+            'status': 'N/A'
         }]
     
     context = {
@@ -1547,65 +1564,94 @@ def admin_view_pool(request, pool_id):
 def admin_view_proposal(request, proposal_id):
     """View details of a specific proposal."""
     try:
-        # For now, we're only handling pool cancellation requests
-        cancellation_request = get_object_or_404(PoolCancellationRequest, id=proposal_id)
+        # Get the proposal type from query parameters
+        proposal_type = request.GET.get('type', 'Cancel Pool')  # Default to Cancel Pool for backward compatibility
         
-        # Get contract address and ABI for MetaMask integration
-        from .utils.contract_utils import get_admin_contract_address, load_abi, get_web3, get_voting_contract
-        admin_contract_address = get_admin_contract_address()
-        admin_contract_abi = load_abi("artifacts/contracts/VotingAdmin.sol/VotingAdmin.json")
-        
-        # Try to get pool details from blockchain if connected
-        pool_info = {}
-        try:
-            web3 = get_web3()
-            if web3.is_connected():
-                voting_contract = get_voting_contract()
-                pool_details = voting_contract.functions.getPoolDetails(cancellation_request.pool_id).call()
-                id, category, candidates, start_time, end_time, status = pool_details
-                
-                import datetime
-                start_date = datetime.datetime.fromtimestamp(start_time).strftime('%Y-%m-%d')
-                end_date = datetime.datetime.fromtimestamp(end_time).strftime('%Y-%m-%d')
-                
-                pool_info = {
-                    'category': category,
-                    'start_date': start_date,
-                    'end_date': end_date,
-                    'status': ["Pending", "Active", "Cancelled", "Ended"][status] if status < 4 else "Unknown"
-                }
-        except Exception as e:
-            print(f"Error getting pool details: {e}")
-            pool_info = {
-                'category': 'Unknown',
-                'start_date': 'N/A',
-                'end_date': 'N/A',
-                'status': 'Unknown'
+        if proposal_type == 'Replace Admin':
+            # Handle admin replacement request
+            replacement_request = get_object_or_404(AdminReplacementRequest, id=proposal_id)
+            
+            # Create proposal data for the template
+            proposal = {
+                'id': replacement_request.id,
+                'type': 'Replace Admin',
+                'requester': replacement_request.initiator.username,
+                'created_at': replacement_request.created_at.strftime('%Y-%m-%d %H:%M'),
+                'details': replacement_request.reason,
+                'status': replacement_request.status.capitalize(),
+                'admin_to_replace': replacement_request.admin_to_replace,
+                'replacement_candidate': replacement_request.replacement_candidate,
+                'can_be_approved': replacement_request.can_be_approved_by(request.user),
+                'blockchain_proposal_id': replacement_request.blockchain_proposal_id
             }
             
-        # Create proposal data for the template
-        proposal = {
-            'id': cancellation_request.id,
-            'type': 'Cancel Pool',
-            'requester': cancellation_request.initiator.username,
-            'created_at': cancellation_request.created_at.strftime('%Y-%m-%d %H:%M'),
-            'details': cancellation_request.reason,
-            'status': cancellation_request.status.capitalize(),
-            'pool_id': cancellation_request.pool_id,
-            'pool_info': pool_info,
-            'can_be_approved': cancellation_request.can_be_approved_by(request.user),
-            'blockchain_proposal_id': cancellation_request.blockchain_proposal_id
-        }
+            context = {
+                'active_tab': 'proposals',
+                'proposal': proposal,
+                'proposal_type': 'Replace Admin'
+            }
+            
+        else:
+            # Handle pool cancellation request (existing logic)
+            cancellation_request = get_object_or_404(PoolCancellationRequest, id=proposal_id)
+            
+            # Get contract address and ABI for MetaMask integration
+            from .utils.contract_utils import get_admin_contract_address, load_abi, get_web3, get_voting_contract
+            admin_contract_address = get_admin_contract_address()
+            admin_contract_abi = load_abi("artifacts/contracts/VotingAdmin.sol/VotingAdmin.json")
+            
+            # Try to get pool details from blockchain if connected
+            pool_info = {}
+            try:
+                web3 = get_web3()
+                if web3.is_connected():
+                    voting_contract = get_voting_contract()
+                    pool_details = voting_contract.functions.getPoolDetails(cancellation_request.pool_id).call()
+                    id, category, candidates, start_time, end_time, status = pool_details
+                    
+                    import datetime
+                    start_date = datetime.datetime.fromtimestamp(start_time).strftime('%Y-%m-%d')
+                    end_date = datetime.datetime.fromtimestamp(end_time).strftime('%Y-%m-%d')
+                    
+                    pool_info = {
+                        'category': category,
+                        'start_date': start_date,
+                        'end_date': end_date,
+                        'status': ["Pending", "Active", "Cancelled", "Ended"][status] if status < 4 else "Unknown"
+                    }
+            except Exception as e:
+                print(f"Error getting pool details: {e}")
+                pool_info = {
+                    'category': 'Unknown',
+                    'start_date': 'N/A',
+                    'end_date': 'N/A',
+                    'status': 'Unknown'
+                }
+                
+            # Create proposal data for the template
+            proposal = {
+                'id': cancellation_request.id,
+                'type': 'Cancel Pool',
+                'requester': cancellation_request.initiator.username,
+                'created_at': cancellation_request.created_at.strftime('%Y-%m-%d %H:%M'),
+                'details': cancellation_request.reason,
+                'status': cancellation_request.status.capitalize(),
+                'pool_id': cancellation_request.pool_id,
+                'pool_info': pool_info,
+                'can_be_approved': cancellation_request.can_be_approved_by(request.user),
+                'blockchain_proposal_id': cancellation_request.blockchain_proposal_id
+            }
 
-        # <<< ADD THIS PRINT STATEMENT FOR DEBUGGING >>>
-        print(f"[DEBUG] In admin_view_proposal for Django ID {cancellation_request.id}: blockchain_proposal_id is {cancellation_request.blockchain_proposal_id}, type: {type(cancellation_request.blockchain_proposal_id)}")
-        
-        context = {
-            'active_tab': 'proposals',
-            'proposal': proposal,
-            'admin_contract_address': admin_contract_address,
-            'admin_contract_abi': json.dumps(admin_contract_abi)
-        }
+            # <<< ADD THIS PRINT STATEMENT FOR DEBUGGING >>>
+            print(f"[DEBUG] In admin_view_proposal for Django ID {cancellation_request.id}: blockchain_proposal_id is {cancellation_request.blockchain_proposal_id}, type: {type(cancellation_request.blockchain_proposal_id)}")
+            
+            context = {
+                'active_tab': 'proposals',
+                'proposal': proposal,
+                'admin_contract_address': admin_contract_address,
+                'admin_contract_abi': json.dumps(admin_contract_abi),
+                'proposal_type': 'Cancel Pool'
+            }
         
     except Exception as e:
         print("\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
@@ -1799,8 +1845,43 @@ def admin_reject_cancellation(request, request_id):
 def admin_submit_replace_request(request):
     """API endpoint to submit an admin replacement request."""
     if request.method == 'POST':
-        # Process the replacement request
-        messages.success(request, "✅ Replacement request submitted successfully.")
+        try:
+            admin_id = request.POST.get('admin_id')
+            candidate_id = request.POST.get('candidate_id')
+            reason = request.POST.get('reason')
+            
+            # Validate the data
+            if not admin_id or not candidate_id or not reason:
+                messages.error(request, "❌ All fields are required.")
+                return redirect('admin_replace_admin')
+            
+            # Get the admin and candidate users
+            admin_to_replace = get_object_or_404(CustomUser, id=admin_id, user_type='admin')
+            replacement_candidate = get_object_or_404(CustomUser, id=candidate_id, user_type='voter')
+            
+            # Check if there's already a pending request for this admin
+            existing_request = AdminReplacementRequest.objects.filter(
+                admin_to_replace=admin_to_replace,
+                status='pending'
+            ).first()
+            
+            if existing_request:
+                messages.warning(request, f"⚠️ There is already a pending replacement request for {admin_to_replace.username}.")
+                return redirect('admin_replace_admin')
+            
+            # Create the replacement request
+            replacement_request = AdminReplacementRequest.objects.create(
+                admin_to_replace=admin_to_replace,
+                replacement_candidate=replacement_candidate,
+                reason=reason,
+                initiator=request.user
+            )
+            
+            messages.success(request, f"✅ Replacement request submitted successfully. Request ID: {replacement_request.id}")
+            
+        except Exception as e:
+            messages.error(request, f"❌ Error submitting replacement request: {str(e)}")
+    
     return redirect('admin_replace_admin')
 
 @admin_required
@@ -1845,8 +1926,115 @@ def admin_approve_proposal(request):
 def admin_reject_proposal(request):
     """API endpoint to reject a proposal."""
     if request.method == 'POST':
-        # Process the rejection
-        messages.success(request, "✅ Proposal rejected successfully.")
+        proposal_id = request.POST.get('proposal_id')
+        proposal_type = request.POST.get('proposal_type', 'Cancel Pool')
+        
+        if not proposal_id:
+            messages.error(request, "❌ Proposal ID is required.")
+            return redirect('admin_proposals')
+        
+        try:
+            if proposal_type == 'Replace Admin':
+                # Handle admin replacement request rejection
+                replacement_request = get_object_or_404(AdminReplacementRequest, id=proposal_id)
+                
+                # Check if the request is still pending
+                if replacement_request.status != 'pending':
+                    messages.error(request, "❌ This request has already been processed.")
+                    return redirect('admin_view_proposal', proposal_id=proposal_id)
+                
+                # Check if the rejector is not the same as the initiator
+                if not replacement_request.can_be_approved_by(request.user):
+                    messages.error(request, "❌ You cannot reject your own replacement request.")
+                    return redirect('admin_view_proposal', proposal_id=proposal_id)
+                
+                # Update the request status and approver
+                replacement_request.status = 'rejected'
+                replacement_request.approver = request.user
+                replacement_request.save()
+                
+                messages.success(request, "✅ Admin replacement request rejected successfully.")
+                
+            else:
+                # Handle pool cancellation request rejection (existing logic)
+                cancellation_request = get_object_or_404(PoolCancellationRequest, id=proposal_id)
+                
+                # Check if the request is still pending
+                if cancellation_request.status != 'pending':
+                    messages.error(request, "❌ This request has already been processed.")
+                    return redirect('admin_view_proposal', proposal_id=proposal_id)
+                
+                # Update the request status and approver
+                cancellation_request.status = 'rejected'
+                cancellation_request.approver = request.user
+                cancellation_request.save()
+                
+                messages.success(request, "✅ Cancellation request rejected successfully.")
+            
+        except (PoolCancellationRequest.DoesNotExist, AdminReplacementRequest.DoesNotExist):
+            messages.error(request, "❌ Request not found.")
+            return redirect('admin_proposals')
+        
+    return redirect('admin_proposals')
+
+@admin_required
+def admin_approve_replacement_request(request):
+    """API endpoint to approve an admin replacement request."""
+    if request.method == 'POST':
+        proposal_id = request.POST.get('proposal_id')
+        
+        if not proposal_id:
+            messages.error(request, "❌ Proposal ID is required.")
+            return redirect('admin_proposals')
+        
+        try:
+            replacement_request = get_object_or_404(AdminReplacementRequest, id=proposal_id)
+            
+            # Check if the request is still pending
+            if replacement_request.status != 'pending':
+                messages.error(request, "❌ This request has already been processed.")
+                return redirect('admin_view_proposal', proposal_id=proposal_id)
+            
+            # Check if the approver is not the same as the initiator
+            if not replacement_request.can_be_approved_by(request.user):
+                messages.error(request, "❌ You cannot approve your own replacement request.")
+                return redirect('admin_view_proposal', proposal_id=proposal_id)
+            
+            # Update the request status and approver
+            replacement_request.status = 'approved'
+            replacement_request.approver = request.user
+            replacement_request.save()
+            
+            # Execute the replacement immediately (since this is a database operation)
+            try:
+                # Change the user types
+                admin_to_replace = replacement_request.admin_to_replace
+                replacement_candidate = replacement_request.replacement_candidate
+                
+                # Change admin to voter
+                admin_to_replace.user_type = 'voter'
+                admin_to_replace.save(update_fields=['user_type'])
+                
+                # Change candidate to admin
+                replacement_candidate.user_type = 'admin'
+                replacement_candidate.save(update_fields=['user_type'])
+                
+                # Mark as executed
+                replacement_request.status = 'executed'
+                replacement_request.save(update_fields=['status'])
+                
+                messages.success(request, f"✅ Admin replacement executed successfully. {replacement_candidate.username} is now an admin and {admin_to_replace.username} is now a voter.")
+                
+            except Exception as e:
+                messages.error(request, f"❌ Error executing replacement: {str(e)}")
+                return redirect('admin_view_proposal', proposal_id=proposal_id)
+            
+            return redirect('admin_proposals')
+            
+        except AdminReplacementRequest.DoesNotExist:
+            messages.error(request, "❌ Replacement request not found.")
+            return redirect('admin_proposals')
+    
     return redirect('admin_proposals')
 
 @csrf_exempt

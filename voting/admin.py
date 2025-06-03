@@ -2,7 +2,7 @@
 
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import CustomUser, Candidate, Voter, Category, PoolCancellationRequest # Import your models from this app
+from .models import CustomUser, Candidate, Voter, Category, PoolCancellationRequest, AdminReplacementRequest # Import your models from this app
 
 # --- Admin Configuration for CustomUser ---
 @admin.register(CustomUser) # Use decorator for cleaner registration
@@ -91,6 +91,33 @@ class PoolCancellationRequestAdmin(admin.ModelAdmin):
         }),
         ('Blockchain Information', {
             'fields': ('transaction_hash',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at')
+        }),
+    )
+
+# Register AdminReplacementRequest with admin
+@admin.register(AdminReplacementRequest)
+class AdminReplacementRequestAdmin(admin.ModelAdmin):
+    list_display = ('admin_to_replace', 'replacement_candidate', 'initiator', 'approver', 'status', 'created_at', 'updated_at')
+    list_filter = ('status', 'created_at')
+    search_fields = (
+        'admin_to_replace__username', 'admin_to_replace__email',
+        'replacement_candidate__username', 'replacement_candidate__email',
+        'initiator__username', 'initiator__email',
+        'approver__username', 'approver__email'
+    )
+    readonly_fields = ('created_at', 'updated_at', 'transaction_hash')
+    fieldsets = (
+        ('Replacement Information', {
+            'fields': ('admin_to_replace', 'replacement_candidate', 'reason', 'status')
+        }),
+        ('Admin Information', {
+            'fields': ('initiator', 'approver')
+        }),
+        ('Blockchain Information', {
+            'fields': ('transaction_hash', 'blockchain_proposal_id')
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at')

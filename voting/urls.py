@@ -14,6 +14,7 @@ from .views import (
     admin_proposals, wallet_connect, admin_view_pool, admin_view_proposal,
     admin_submit_cancel_request, admin_submit_replace_request,
     admin_approve_proposal, admin_reject_proposal, admin_cancel_pool_list,
+    admin_approve_replacement_request,
     
     # New cancellation approval flow
     admin_pending_cancellations, admin_approve_cancellation, admin_reject_cancellation,
@@ -76,6 +77,7 @@ urlpatterns = [
     path('admin-portal/api/submit-replace-request/', admin_submit_replace_request, name='admin_submit_replace_request'),
     path('admin-portal/api/approve-proposal/', admin_approve_proposal, name='admin_approve_proposal'),
     path('admin-portal/api/reject-proposal/', admin_reject_proposal, name='admin_reject_proposal'),
+    path('admin-portal/api/approve-replacement-request/', admin_approve_replacement_request, name='admin_approve_replacement_request'),
     
     # Pool cancellation approval flow
     path('admin-portal/pending-cancellations/', admin_pending_cancellations, name='admin_pending_cancellations'),
