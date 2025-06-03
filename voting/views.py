@@ -1,5 +1,6 @@
 import json
 import random
+import string
 from io import BytesIO
 import time
 import logging
@@ -1866,5 +1867,71 @@ def update_transaction_hash(request, request_id):
             return JsonResponse({'success': False, 'error': str(e)}, status=500)
     
     return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=405)
+
+def generate_reset_code():
+    """Generate a random 6-digit code"""
+    return ''.join(random.choices(string.digits, k=6))
+
+def forgot_password(request):
+    if request.method == 'POST':
+        email = request.POST.get('email')
+        try:
+            user = CustomUser.objects.get(email=email)
+            # Generate reset code
+            reset_code = generate_reset_code()
+            # Store the code in session
+            request.session['reset_code'] = reset_code
+            request.session['reset_email'] = email
+            
+            # Send email with reset code
+            send_mail(
+                'Password Reset Code',
+                f'Your password reset code is: {reset_code}',
+                'evoting.nu@gmail.com',
+                [email],
+                fail_silently=False,
+            )
+            messages.success(request, '✅ Reset code has been sent to your email.')
+            return redirect('reset_password')
+        except CustomUser.DoesNotExist:
+            messages.error(request, '❌ No account found with this email.')
+    return render(request, 'voting/forgot_password.html')
+
+def reset_password(request):
+    if request.method == 'POST':
+        code = request.POST.get('code')
+        new_password = request.POST.get('new_password')
+        confirm_password = request.POST.get('confirm_password')
+        
+        stored_code = request.session.get('reset_code')
+        stored_email = request.session.get('reset_email')
+        
+        if not stored_code or not stored_email:
+            messages.error(request, '❌ Reset session expired. Please try again.')
+            return redirect('forgot_password')
+        
+        if code != stored_code:
+            messages.error(request, '❌ Invalid reset code.')
+            return render(request, 'voting/reset_password.html')
+            
+        if new_password != confirm_password:
+            messages.error(request, '❌ Passwords do not match.')
+            return render(request, 'voting/reset_password.html')
+            
+        try:
+            user = CustomUser.objects.get(email=stored_email)
+            user.set_password(new_password)
+            user.save()
+            
+            # Clear session data
+            del request.session['reset_code']
+            del request.session['reset_email']
+            
+            messages.success(request, '✅ Password has been reset successfully. Please login with your new password.')
+            return redirect('login')
+        except CustomUser.DoesNotExist:
+            messages.error(request, '❌ User not found.')
+            
+    return render(request, 'voting/reset_password.html')
 
 

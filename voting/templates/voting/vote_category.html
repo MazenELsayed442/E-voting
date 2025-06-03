@@ -1,50 +1,7 @@
 {% extends 'voting/base.html' %}
 
 {% block content %}
-<div class="timer-container">
-    <span id="countdown"></span>
-</div>
-
-<script>
-    let voteEndTime = new Date().getTime() + (3 * 24 * 60 * 60 * 1000);
-
-    function updateCountdown() {
-        let now = new Date().getTime();
-        let timeLeft = voteEndTime - now;
-
-        if (timeLeft > 0) {
-            let days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
-            let hours = Math.floor((timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-            let minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
-            let seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
-
-            document.getElementById("countdown").innerText =
-                (days > 0 ? days + "d " : "") + 
-                hours.toString().padStart(2, '0') + ":" +
-                minutes.toString().padStart(2, '0') + ":" +
-                seconds.toString().padStart(2, '0');
-        } else {
-            document.getElementById("countdown").innerText = "00:00:00";
-            clearInterval(timerInterval);
-        }
-    }
-
-    let timerInterval = setInterval(updateCountdown, 1000);
-    updateCountdown();
-</script>
-
 <style>
-    .timer-container {
-        font-size: 18px;
-        font-weight: bold;
-        color: #fff;
-        background: #212529;
-        padding: 8px 15px;
-        border-radius: 6px;
-        display: inline-block;
-        box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
-    }
-
     .container {
         text-align: center;
         padding: 20px;

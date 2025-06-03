@@ -24,7 +24,9 @@
                     </div>
 
                     <!-- Submit Button -->
-                    <button type="submit" class="btn btn-dark w-100">Login</button>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">Login</button>
+                    </div>
                 </form>
             </div>
 
@@ -38,6 +40,10 @@
                     {% endfor %}
                 </div>
             {% endif %}
+
+            <div class="text-center mt-3">
+                <a href="{% url 'forgot_password' %}" class="text-decoration-none">Forgot Password?</a>
+            </div>
         </div>
     </div>
 </div>

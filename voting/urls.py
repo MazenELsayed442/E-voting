@@ -1,13 +1,13 @@
 from django.urls import path
 from django.conf import settings
 from django.conf.urls.static import static
-from .views import vote_home, save_wallet
 
 from .views import (
     home, vote_home, register, login_view, logout_view,
     send_otp, verify_otp, change_email, resend_otp,
     vote_category, get_candidate_details, verify_totp, vote_candidate,
-    send_gmail_otp_ajax, verify_gmail_otp_ajax, verify_google_otp_ajax,login_otp,save_signature,
+    send_gmail_otp_ajax, verify_gmail_otp_ajax, verify_google_otp_ajax,
+    login_otp, save_signature, save_wallet,
     
     # Admin views
     admin_dashboard, admin_create_pool, admin_cancel_pool, admin_replace_admin,
@@ -17,7 +17,10 @@ from .views import (
     
     # New cancellation approval flow
     admin_pending_cancellations, admin_approve_cancellation, admin_reject_cancellation,
-    update_transaction_hash
+    update_transaction_hash,
+    
+    # Password reset views
+    forgot_password, reset_password
 )
 
 urlpatterns = [
@@ -29,6 +32,10 @@ urlpatterns = [
     path("register/", register, name="register"),
     path("login/", login_view, name="login"),
     path("logout/", logout_view, name="logout"),
+    
+    # Password reset
+    path('forgot-password/', forgot_password, name='forgot_password'),
+    path('reset-password/', reset_password, name='reset_password'),
     
     # OTP verify
     path("send-otp/", send_otp, name="send_otp"),
@@ -43,7 +50,6 @@ urlpatterns = [
     path("vote/<int:candidate_id>/", vote_candidate, name="vote_candidate"),
     path("login/otp/", login_otp, name="login_otp"),
 
-
     # Wallet
     path('save_wallet/', save_wallet, name='save_wallet'),
 
@@ -51,13 +57,13 @@ urlpatterns = [
     path("ajax/send_gmail_otp/", send_gmail_otp_ajax, name="send_gmail_otp_ajax"),
     path("ajax/verify_gmail_otp/", verify_gmail_otp_ajax, name="verify_gmail_otp_ajax"),
     path("ajax/verify_google_otp/", verify_google_otp_ajax, name="verify_google_otp_ajax"),
-    path('save-signature/',save_signature, name='save_signature'),
+    path('save-signature/', save_signature, name='save_signature'),
     
     # Admin pages
     path('admin-portal/dashboard/', admin_dashboard, name='admin_dashboard'),
     path('admin-portal/create-pool/', admin_create_pool, name='admin_create_pool'),
-    path('admin-portal/cancel-pool/', admin_cancel_pool_list, name='admin_cancel_pool'),  # List all cancelable pools
-    path('admin-portal/cancel-pool/<int:pool_id>/', admin_cancel_pool, name='admin_cancel_pool_specific'),  # Cancel specific pool
+    path('admin-portal/cancel-pool/', admin_cancel_pool_list, name='admin_cancel_pool'),
+    path('admin-portal/cancel-pool/<int:pool_id>/', admin_cancel_pool, name='admin_cancel_pool_specific'),
     path('admin-portal/replace-admin/', admin_replace_admin, name='admin_replace_admin'),
     path('admin-portal/proposals/', admin_proposals, name='admin_proposals'),
     path('admin-portal/wallet-connect/', wallet_connect, name='wallet_connect'),
