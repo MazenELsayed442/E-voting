@@ -20,7 +20,8 @@ from .views import (
     update_transaction_hash,
     
     # Password reset views
-    forgot_password, reset_password
+    forgot_password, reset_password,
+    update_candidate,
 )
 
 urlpatterns = [
@@ -81,6 +82,7 @@ urlpatterns = [
     path('admin-portal/approve-cancellation/<int:request_id>/', admin_approve_cancellation, name='admin_approve_cancellation'),
     path('admin-portal/reject-cancellation/<int:request_id>/', admin_reject_cancellation, name='admin_reject_cancellation'),
     path('update-transaction-hash/<int:request_id>/', update_transaction_hash, name='update_transaction_hash'),
+    path('update-candidate/', update_candidate, name='update_candidate'),
 ]
 
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

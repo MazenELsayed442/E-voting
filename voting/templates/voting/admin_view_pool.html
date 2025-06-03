@@ -5,152 +5,203 @@
 {% block admin_title %}Pool Details: {{ pool.category }}{% endblock %}
 
 {% block admin_content %}
-<div class="card mb-4">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">Pool Details</h5>
-        <div class="actions">
-            <a href="{% url 'admin_dashboard' %}" class="btn btn-sm btn-outline-primary">
+<div class="container">
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Pool Details</h5>
+            <a href="{% url 'admin_dashboard' %}" class="btn btn-outline-primary btn-sm">
                 <i class="bi bi-arrow-left"></i> Back to Dashboard
             </a>
         </div>
-    </div>
-    <div class="card-body">
-        <div class="row">
-            <div class="col-md-6">
-                <table class="table">
-                    <tr>
-                        <th>Category:</th>
-                        <td>{{ pool.category }}</td>
-                    </tr>
-                    <tr>
-                        <th>Status:</th>
-                        <td>
-                            <span class="badge bg-success">Active</span>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th>Start Date:</th>
-                        <td>{{ pool.start_time }}</td>
-                    </tr>
-                    <tr>
-                        <th>End Date:</th>
-                        <td>{{ pool.end_time }}</td>
-                    </tr>
-                    <tr>
-                        <th>Total Votes:</th>
-                        <td>{{ pool.votes }}</td>
-                    </tr>
-                </table>
-            </div>
-            <div class="col-md-6">
-                <div class="pool-visualization">
-                    <canvas id="voteChart"></canvas>
+        <div class="card-body">
+            <div class="row">
+                <!-- Pool Details Column -->
+                <div class="col-md-6">
+                    <table class="table">
+                        <tr>
+                            <th>Category:</th>
+                            <td>{{ pool.category }}</td>
+                        </tr>
+                        <tr>
+                            <th>Status:</th>
+                            <td>
+                                <span class="badge {% if pool.status == 'Active' %}bg-success{% elif pool.status == 'Pending' %}bg-warning{% else %}bg-secondary{% endif %}">
+                                    {{ pool.status }}
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Start Date:</th>
+                            <td>{{ pool.start_time }}</td>
+                        </tr>
+                        <tr>
+                            <th>End Date:</th>
+                            <td>{{ pool.end_time }}</td>
+                        </tr>
+                        <tr>
+                            <th>Total Votes:</th>
+                            <td>{{ pool.votes }}</td>
+                        </tr>
+                    </table>
+                </div>
+                
+                <!-- Vote Distribution Chart Column -->
+                <div class="col-md-6">
+                    <div class="text-center">
+                        <h6>Vote Distribution</h6>
+                        <canvas id="voteChart"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-</div>
 
-<div class="card">
-    <div class="card-header">
-        <h5 class="mb-0">Candidate Results</h5>
-    </div>
-    <div class="card-body">
-        <div class="table-responsive">
-            <table class="table table-hover">
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>Votes</th>
-                        <th>Percentage</th>
-                        <th>Distribution</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for candidate in pool.candidates %}
-                    <tr>
-                        <td>{{ candidate.name }}</td>
-                        <td>{{ candidate.votes }}</td>
-                        <td>
-                            {% if pool.votes > 0 %}
-                                {{ candidate.votes|floatformat:2|multiply:100|divide:pool.votes }}%
-                            {% else %}
-                                0%
-                            {% endif %}
-                        </td>
-                        <td>
-                            <div class="progress">
-                                {% if pool.votes > 0 %}
-                                    <div class="progress-bar bg-primary" role="progressbar" 
-                                         style="width: {{ candidate.votes|multiply:100|divide:pool.votes }}%"></div>
-                                {% else %}
-                                    <div class="progress-bar bg-primary" role="progressbar" style="width: 0%"></div>
-                                {% endif %}
-                            </div>
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="4" class="text-center">No candidate data available</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+    <!-- Candidate Results -->
+    <div class="card mt-4">
+        <div class="card-header">
+            <h5 class="mb-0">Candidate Results</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                {% for candidate in candidates %}
+                <div class="col-md-6 mb-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <form class="candidate-form" method="POST" enctype="multipart/form-data" action="{% url 'update_candidate' %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="candidate_id" value="{{ candidate.id }}" required>
+                                
+                                <!-- Candidate Image -->
+                                <div class="text-center mb-3">
+                                    {% if candidate.image and candidate.image.url %}
+                                        <img src="{{ candidate.image.url }}" 
+                                             alt="{{ candidate.name }}" 
+                                             class="img-fluid rounded candidate-image" 
+                                             style="max-height: 200px;">
+                                    {% else %}
+                                        <img src="{% static 'voting/images/placeholder.png' %}" 
+                                             alt="No image available" 
+                                             class="img-fluid rounded candidate-image" 
+                                             style="max-height: 200px;">
+                                    {% endif %}
+                                </div>
+                                
+                                <!-- Candidate Info -->
+                                <h5 class="card-title">{{ candidate.name }}</h5>
+                                <p class="text-muted">Votes: {{ candidate.votes }}</p>
+                                
+                                <!-- Description -->
+                                <div class="mb-3">
+                                    <label class="form-label">Description</label>
+                                    <textarea class="form-control" name="description" rows="3" required>{{ candidate.description }}</textarea>
+                                </div>
+                                
+                                <!-- Image Upload -->
+                                <div class="mb-3">
+                                    <label class="form-label">Update Image</label>
+                                    <input type="file" class="form-control" name="image" accept="image/*">
+                                </div>
+                                
+                                <!-- Save Button -->
+                                <div class="text-end">
+                                    <button type="submit" class="btn btn-primary save-changes">
+                                        <i class="bi bi-save"></i> Save Changes
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
         </div>
     </div>
 </div>
 
+<!-- Chart.js for vote distribution -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Prepare data for the chart
-        var candidates = [
-            {% for candidate in pool.candidates %}
-                "{{ candidate.name }}",
-            {% endfor %}
-        ];
-        
-        var votes = [
-            {% for candidate in pool.candidates %}
-                {{ candidate.votes }},
-            {% endfor %}
-        ];
-        
-        // Generate random colors for the chart
-        function generateColors(count) {
-            var colors = [];
-            for (var i = 0; i < count; i++) {
-                colors.push(`hsl(${i * (360 / count)}, 70%, 60%)`);
-            }
-            return colors;
-        }
-        
-        var ctx = document.getElementById('voteChart').getContext('2d');
-        var myChart = new Chart(ctx, {
-            type: 'pie',
-            data: {
-                labels: candidates,
-                datasets: [{
-                    data: votes,
-                    backgroundColor: generateColors(candidates.length),
-                    borderColor: 'white',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                    },
-                    title: {
-                        display: true,
-                        text: 'Vote Distribution'
-                    }
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize vote distribution chart
+    const ctx = document.getElementById('voteChart').getContext('2d');
+    const chartData = {
+        labels: [{% for candidate in candidates %}'{{ candidate.name|escapejs }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+        datasets: [{
+            data: [{% for candidate in candidates %}{{ candidate.votes }}{% if not forloop.last %},{% endif %}{% endfor %}],
+            backgroundColor: ['#ff6384', '#36a2eb', '#ffce56', '#4bc0c0', '#9966ff']
+        }]
+    };
+    
+    new Chart(ctx, {
+        type: 'pie',
+        data: chartData,
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'bottom'
                 }
+            }
+        }
+    });
+
+    // Handle form submissions
+    document.querySelectorAll('.candidate-form').forEach(form => {
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const candidateId = this.querySelector('input[name="candidate_id"]').value;
+            if (!candidateId) {
+                alert('Error: Candidate ID is required');
+                return;
+            }
+            
+            const description = this.querySelector('textarea[name="description"]').value;
+            if (!description) {
+                alert('Error: Description is required');
+                return;
+            }
+            
+            const submitButton = this.querySelector('.save-changes');
+            submitButton.disabled = true;
+            submitButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Saving...';
+            
+            try {
+                const formData = new FormData(this);
+                
+                const response = await fetch(this.action, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Connection error: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    if (result.image_url) {
+                        this.querySelector('.candidate-image').src = result.image_url;
+                    }
+                    alert('Changes saved successfully!');
+                } else {
+                    throw new Error(result.error || 'Unknown error occurred');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert(`Error saving changes: ${error.message}`);
+            } finally {
+                submitButton.disabled = false;
+                submitButton.innerHTML = '<i class="bi bi-save"></i> Save Changes';
             }
         });
     });
+});
 </script>
 
 <style>
@@ -160,6 +211,28 @@
     .pool-visualization {
         max-width: 100%;
         height: 250px;
+    }
+    .card {
+        box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    .candidate-image {
+        box-shadow: 0 0 5px rgba(0,0,0,0.2);
+        transition: all 0.3s ease;
+    }
+    .candidate-image:hover {
+        transform: scale(1.05);
+    }
+    .save-changes {
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    .save-changes:disabled {
+        cursor: not-allowed;
+        opacity: 0.7;
+    }
+    .save-changes:not(:disabled):hover {
+        transform: translateY(-2px);
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
     }
 </style>
 

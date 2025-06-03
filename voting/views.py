@@ -1450,13 +1450,14 @@ def wallet_connect(request):
 def admin_view_pool(request, pool_id):
     """View details of a specific voting pool with real blockchain data."""
     from .utils.contract_utils import get_contract, get_pool_details
+    from .models import Candidate
     import datetime
     
     try:
         # Get pool details from the blockchain
         contract = get_contract()
         pool_details = get_pool_details(pool_id)
-        id, category, candidates, start_time, end_time, status = pool_details
+        id, category, candidate_names, start_time, end_time, status = pool_details
         
         # Convert timestamps to readable dates
         start_date = datetime.datetime.fromtimestamp(start_time).strftime('%Y-%m-%d')
@@ -1473,17 +1474,31 @@ def admin_view_pool(request, pool_id):
             # PoolStatus: 0=Pending, 1=Active, 2=Cancelled, 3=Ended
             status_text = ["Pending", "Active", "Cancelled", "Ended"][status] if status < 4 else "Unknown"
         
-        # Get votes for each candidate
-        candidate_votes = []
+        # Get votes for each candidate from blockchain
         total_votes = 0
-        
-        for candidate in candidates:
-            votes = contract.functions.getVotes(pool_id, candidate).call()
+        for candidate_name in candidate_names:
+            votes = contract.functions.getVotes(pool_id, candidate_name).call()
             total_votes += votes
-            candidate_votes.append({
-                'name': candidate,
-                'votes': votes
-            })
+        
+        # Get candidates from database with their details
+        candidates = []
+        for candidate_name in candidate_names:
+            try:
+                candidate = Candidate.objects.get(name=candidate_name, category=category)
+                # Update votes from blockchain
+                votes = contract.functions.getVotes(pool_id, candidate_name).call()
+                candidate.votes = votes
+                candidate.save()
+                candidates.append(candidate)
+            except Candidate.DoesNotExist:
+                # Create candidate if it doesn't exist
+                candidate = Candidate.objects.create(
+                    name=candidate_name,
+                    category=category,
+                    votes=votes,
+                    description=''  # Empty description by default
+                )
+                candidates.append(candidate)
         
         pool = {
             'id': id,
@@ -1491,7 +1506,6 @@ def admin_view_pool(request, pool_id):
             'start_time': start_date,
             'end_time': end_date,
             'votes': total_votes,
-            'candidates': candidate_votes,
             'status': status_text
         }
         
@@ -1512,20 +1526,19 @@ def admin_view_pool(request, pool_id):
         candidates = Candidate.objects.filter(category=category)
         total_votes = sum(c.votes for c in candidates)
         
-        candidate_votes = [{'name': c.name, 'votes': c.votes} for c in candidates]
-        
         pool = {
             'id': pool_id,
             'category': category,
             'start_time': 'N/A',
             'end_time': 'N/A',
             'votes': total_votes,
-            'candidates': candidate_votes
+            'status': 'Unknown'
         }
     
     context = {
         'active_tab': 'dashboard',
-        'pool': pool
+        'pool': pool,
+        'candidates': candidates
     }
     
     return render(request, "voting/admin_view_pool.html", context)
@@ -1933,5 +1946,50 @@ def reset_password(request):
             messages.error(request, '❌ User not found.')
             
     return render(request, 'voting/reset_password.html')
+
+@admin_required
+def update_candidate(request):
+    """API endpoint to update a candidate's image and description."""
+    if request.method == 'POST':
+        candidate_id = request.POST.get('candidate_id')
+        description = request.POST.get('description')
+        image = request.FILES.get('image')
+        
+        try:
+            candidate = Candidate.objects.get(id=candidate_id)
+            
+            if description:
+                candidate.description = description
+            
+            if image:
+                candidate.image = image
+            
+            candidate.save()
+            
+            response_data = {
+                'success': True,
+                'message': 'Candidate updated successfully'
+            }
+            
+            if image:
+                response_data['image_url'] = candidate.image.url
+            
+            return JsonResponse(response_data)
+            
+        except Candidate.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Candidate not found'
+            }, status=404)
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': str(e)
+            }, status=500)
+    
+    return JsonResponse({
+        'success': False,
+        'error': 'Invalid request method'
+    }, status=405)
 
 
