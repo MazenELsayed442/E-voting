@@ -19,7 +19,15 @@
             
             <div class="mb-3">
                 <label for="start_datetime" class="form-label">Start Date & Time</label>
-                <input type="datetime-local" class="form-control" id="start_datetime" name="start_datetime" required>
+                <div class="input-group">
+                    <input type="datetime-local" class="form-control" id="start_datetime" name="start_datetime" required>
+                    <button type="button" class="btn btn-outline-primary btn-sm" id="set-now-btn" title="Set to current time">
+                        <i class="bi bi-clock"></i> Now
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="increment-minute-btn" title="Add 1 minute">
+                        <i class="bi bi-plus"></i> +1min
+                    </button>
+                </div>
                 <div class="invalid-feedback">
                     Please select a start date and time.
                 </div>
@@ -175,12 +183,41 @@
         
         // Format dates for datetime-local input
         const formatDateForInput = (date) => {
-            return date.toISOString().slice(0, 16); // Format as YYYY-MM-DDTHH:MM
+            // Use local time instead of UTC to avoid timezone offset issues
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            return `${year}-${month}-${day}T${hours}:${minutes}`;
         };
         
         // Set values to inputs
         document.getElementById('start_datetime').value = formatDateForInput(startDate);
         document.getElementById('end_datetime').value = formatDateForInput(endDate);
+        
+        // Set Now button functionality
+        document.getElementById('set-now-btn').addEventListener('click', function() {
+            const now = new Date();
+            now.setSeconds(0);
+            now.setMilliseconds(0);
+            document.getElementById('start_datetime').value = formatDateForInput(now);
+        });
+        
+        // Increment minute button functionality
+        document.getElementById('increment-minute-btn').addEventListener('click', function() {
+            const startInput = document.getElementById('start_datetime');
+            let currentTime = new Date(startInput.value);
+            
+            // If no time is set, use current time
+            if (!startInput.value) {
+                currentTime = new Date();
+            }
+            
+            // Add one minute
+            currentTime.setMinutes(currentTime.getMinutes() + 1);
+            startInput.value = formatDateForInput(currentTime);
+        });
     });
 </script>
 {% endblock %} 

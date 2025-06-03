@@ -294,6 +294,111 @@ class PoolCancellationRequest(models.Model):
         """
         return self.status == 'approved' and not self.transaction_hash
 
+# Admin Replacement Request Model
+class AdminReplacementRequest(models.Model):
+    """
+    Model to track admin replacement requests.
+    An admin can be replaced when at least 2 admins approve the request.
+    """
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+        ('executed', 'Executed')  # When the replacement has been executed
+    ]
+    
+    # Admin to be replaced
+    admin_to_replace = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name='replacement_requests_as_target',
+        help_text='Admin user to be replaced'
+    )
+    
+    # Candidate to replace the admin
+    replacement_candidate = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name='replacement_requests_as_candidate',
+        help_text='User to become the new admin'
+    )
+    
+    # Reason for replacement
+    reason = models.TextField(
+        help_text='Detailed reason for admin replacement'
+    )
+    
+    # Admin who initiated the replacement request
+    initiator = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name='initiated_replacements',
+        help_text='Admin who requested the replacement'
+    )
+    
+    # Admin who approved the replacement (can be null if not yet approved)
+    approver = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name='approved_replacements',
+        null=True,
+        blank=True,
+        help_text='Admin who approved the replacement'
+    )
+    
+    # Status of the request
+    status = models.CharField(
+        max_length=10,
+        choices=STATUS_CHOICES,
+        default='pending'
+    )
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    # Transaction hash when the replacement is executed on the blockchain (if applicable)
+    transaction_hash = models.CharField(
+        max_length=66,
+        blank=True,
+        null=True,
+        help_text='Blockchain transaction hash if executed'
+    )
+    
+    # The proposal ID on the blockchain (not the DB ID)
+    blockchain_proposal_id = models.BigIntegerField(null=True, blank=True)
+    
+    class Meta:
+        verbose_name = "Admin Replacement Request"
+        verbose_name_plural = "Admin Replacement Requests"
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"Replace {self.admin_to_replace.username} with {self.replacement_candidate.username} by {self.initiator.username}"
+    
+    @property
+    def is_approved(self):
+        """Check if the request is approved."""
+        return self.status == 'approved' or self.status == 'executed'
+    
+    @property
+    def can_be_approved(self):
+        """Check if the request can be approved (pending status)."""
+        return self.status == 'pending'
+    
+    def can_be_approved_by(self, user):
+        """
+        Check if the request can be approved by the specified admin.
+        Returns False if the user is the one who initiated the request.
+        """
+        return (self.status == 'pending' and 
+                self.initiator != user and 
+                user.user_type == 'admin')
+    
+    @property
+    def can_be_executed(self):
+        """Check if the replacement can be executed."""
+        return self.status == 'approved' and not self.transaction_hash
 
 from django.contrib.auth.backends import BaseBackend
 from django.contrib.auth import get_user_model

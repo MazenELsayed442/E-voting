@@ -61,18 +61,36 @@
         <!-- Details specific to pool cancellation -->
         <div class="alert alert-info">
             <h6 class="mb-2">Voting Pool Information</h6>
-            <p><strong>Category:</strong> President</p>
-            <p><strong>Start Date:</strong> to be updated</p>
-            <p><strong>End Date:</strong> to be updated</p>
-            <p><strong>Current Votes:</strong> to be updated</p>
+            {% if proposal.pool_info %}
+            <p><strong>Category:</strong> {{ proposal.pool_info.category }}</p>
+            <p><strong>Start Date:</strong> {{ proposal.pool_info.start_date }}</p>
+            <p><strong>End Date:</strong> {{ proposal.pool_info.end_date }}</p>
+            <p><strong>Status:</strong> {{ proposal.pool_info.status }}</p>
+            {% else %}
+            <p><strong>Pool ID:</strong> {{ proposal.pool_id }}</p>
+            <p><strong>Note:</strong> Pool details could not be retrieved from blockchain</p>
+            {% endif %}
         </div>
         {% elif proposal.type == 'Replace Admin' %}
         <!-- Details specific to admin replacement -->
         <div class="alert alert-info">
             <h6 class="mb-2">Admin Replacement Information</h6>
-            <p><strong>Admin to Replace:</strong> Admin 2</p>
-            <p><strong>Current Email:</strong> admin2@example.com</p>
-            <p><strong>Proposed Replacement:</strong> User 1 (user1@example.com)</p>
+            <p><strong>Admin to Replace:</strong> {{ proposal.admin_to_replace.username }} ({{ proposal.admin_to_replace.email }})</p>
+            <p><strong>Current Wallet:</strong> 
+                {% if proposal.admin_to_replace.wallet_address %}
+                    <span class="font-monospace">{{ proposal.admin_to_replace.wallet_address }}</span>
+                {% else %}
+                    <span class="text-muted">Not connected</span>
+                {% endif %}
+            </p>
+            <p><strong>Proposed Replacement:</strong> {{ proposal.replacement_candidate.username }} ({{ proposal.replacement_candidate.email }})</p>
+            <p><strong>Candidate Wallet:</strong> 
+                {% if proposal.replacement_candidate.wallet_address %}
+                    <span class="font-monospace">{{ proposal.replacement_candidate.wallet_address }}</span>
+                {% else %}
+                    <span class="text-muted">Not connected</span>
+                {% endif %}
+            </p>
         </div>
         {% endif %}
     </div>
@@ -146,9 +164,14 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                {% if proposal.type == 'Replace Admin' %}
+                <form action="{% url 'admin_approve_replacement_request' %}" method="post" id="approveForm">
+                {% else %}
                 <form action="{% url 'admin_approve_proposal' %}" method="post" id="approveForm">
+                {% endif %}
                     {% csrf_token %}
                     <input type="hidden" name="proposal_id" value="{{ proposal.id }}">
+                    <input type="hidden" name="proposal_type" value="{{ proposal.type }}">
                     <input type="hidden" name="notes" id="approve-notes">
                     <button type="submit" class="btn btn-success">Approve (Step 1)</button>
                 </form>
@@ -177,6 +200,7 @@
                 <form action="{% url 'admin_reject_proposal' %}" method="post">
                     {% csrf_token %}
                     <input type="hidden" name="proposal_id" value="{{ proposal.id }}">
+                    <input type="hidden" name="proposal_type" value="{{ proposal.type }}">
                     <input type="hidden" name="reason" id="hidden-reject-reason">
                     <input type="hidden" name="notes" id="reject-notes">
                     <button type="submit" class="btn btn-danger" id="confirm-reject-btn">Confirm Rejection</button>
