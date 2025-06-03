@@ -16,31 +16,75 @@
                 <table class="table table-hover">
                     <thead>
                         <tr>
+                            <th>Source</th>
                             <th>Type</th>
                             <th>Requester</th>
                             <th>Date</th>
+                            <th>Details</th>
                             <th>Status</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for proposal in proposals %}
-                            {% if proposal.status != 'Executed' %}
+                            {% if 'Pending' in proposal.status or 'approvals' in proposal.status %}
                             <tr>
+                                <td>
+                                    {% if proposal.source == 'blockchain' %}
+                                    <span class="badge bg-primary">Blockchain</span>
+                                    {% elif proposal.source == 'database' %}
+                                    <span class="badge bg-secondary">Database</span>
+                                    {% else %}
+                                    <span class="badge bg-light text-dark">System</span>
+                                    {% endif %}
+                                </td>
                                 <td>{{ proposal.type }}</td>
                                 <td>{{ proposal.requester }}</td>
                                 <td>{{ proposal.created_at }}</td>
-                                <td><span class="badge bg-warning">Pending</span></td>
                                 <td>
-                                    <a href="{% url 'admin_view_proposal' proposal.id %}?type={{ proposal.type|urlencode }}" class="btn btn-sm btn-primary">
-                                        <i class="bi bi-eye"></i> View
-                                    </a>
+                                    <div class="proposal-details" style="max-width: 200px;">
+                                        {{ proposal.details|truncatechars:50 }}
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if 'Pending' in proposal.status %}
+                                        {% if 'approvals' in proposal.status %}
+                                        <span class="badge bg-warning">{{ proposal.status }}</span>
+                                        {% else %}
+                                        <span class="badge bg-warning">Pending</span>
+                                        {% endif %}
+                                    {% else %}
+                                    <span class="badge bg-info">{{ proposal.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if proposal.source == 'blockchain' %}
+                                        <!-- Blockchain proposal actions -->
+                                        {% if proposal.can_approve %}
+                                        <button class="btn btn-sm btn-success approve-blockchain-proposal"
+                                                data-proposal-id="{{ proposal.id }}"
+                                                title="Approve this blockchain proposal">
+                                            <i class="bi bi-check-circle"></i> Approve
+                                        </button>
+                                        {% elif proposal.user_approved %}
+                                        <span class="badge bg-success">You Approved</span>
+                                        {% elif not user.wallet_address %}
+                                        <small class="text-muted">Connect wallet to approve</small>
+                                        {% else %}
+                                        <span class="badge bg-secondary">Cannot approve</span>
+                                        {% endif %}
+                                    {% else %}
+                                        <!-- Database proposal actions -->
+                                        <a href="{% url 'admin_view_proposal' proposal.id %}?type={{ proposal.type|urlencode }}" class="btn btn-sm btn-primary">
+                                            <i class="bi bi-eye"></i> View
+                                        </a>
+                                    {% endif %}
                                 </td>
                             </tr>
                             {% endif %}
                         {% empty %}
                             <tr>
-                                <td colspan="5" class="text-center py-4 text-muted">
+                                <td colspan="7" class="text-center py-4 text-muted">
                                     <i class="bi bi-info-circle me-2"></i> No pending proposals at this time.
                                 </td>
                             </tr>
@@ -62,9 +106,11 @@
                 <table class="table table-hover">
                     <thead>
                         <tr>
+                            <th>Source</th>
                             <th>Type</th>
                             <th>Requester</th>
                             <th>Date</th>
+                            <th>Details</th>
                             <th>Status</th>
                             <th>Actions</th>
                         </tr>
@@ -73,14 +119,32 @@
                         {% for proposal in proposals %}
                             {% if proposal.status == 'Executed' %}
                             <tr>
+                                <td>
+                                    {% if proposal.source == 'blockchain' %}
+                                    <span class="badge bg-primary">Blockchain</span>
+                                    {% elif proposal.source == 'database' %}
+                                    <span class="badge bg-secondary">Database</span>
+                                    {% else %}
+                                    <span class="badge bg-light text-dark">System</span>
+                                    {% endif %}
+                                </td>
                                 <td>{{ proposal.type }}</td>
                                 <td>{{ proposal.requester }}</td>
                                 <td>{{ proposal.created_at }}</td>
+                                <td>
+                                    <div class="proposal-details" style="max-width: 200px;">
+                                        {{ proposal.details|truncatechars:50 }}
+                                    </div>
+                                </td>
                                 <td><span class="badge bg-success">Executed</span></td>
                                 <td>
+                                    {% if proposal.source == 'database' %}
                                     <a href="{% url 'admin_view_proposal' proposal.id %}?type={{ proposal.type|urlencode }}" class="btn btn-sm btn-primary">
                                         <i class="bi bi-eye"></i> View
                                     </a>
+                                    {% else %}
+                                    <span class="text-muted">Blockchain proposal</span>
+                                    {% endif %}
                                 </td>
                             </tr>
                             {% endif %}
@@ -96,4 +160,79 @@
         </div>
     </div>
 </div>
+
+{% if contract_info.admin_contract_address %}
+<script src="https://cdn.jsdelivr.net/npm/web3@1.8.0/dist/web3.min.js"></script>
+{{ contract_info.admin_contract_abi|json_script:"admin-contract-abi" }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle blockchain proposal approval
+    document.querySelectorAll('.approve-blockchain-proposal').forEach(button => {
+        button.addEventListener('click', async function() {
+            const proposalId = this.getAttribute('data-proposal-id');
+            
+            try {
+                button.disabled = true;
+                button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Approving...';
+                
+                await approveBlockchainProposal(proposalId);
+                
+                // Refresh the page to show updated status
+                window.location.reload();
+                
+            } catch (error) {
+                console.error('Error approving blockchain proposal:', error);
+                alert('Error approving proposal: ' + error.message);
+                
+                button.disabled = false;
+                button.innerHTML = '<i class="bi bi-check-circle"></i> Approve';
+            }
+        });
+    });
+    
+    async function approveBlockchainProposal(proposalId) {
+        if (typeof window.ethereum === 'undefined') {
+            throw new Error('MetaMask is not installed');
+        }
+        
+        // Request account access
+        await window.ethereum.request({ method: 'eth_requestAccounts' });
+        
+        const web3 = new Web3(window.ethereum);
+        
+        // Get contract info
+        const adminContractAbi = JSON.parse(document.getElementById('admin-contract-abi').textContent);
+        const adminContractAddress = "{{ contract_info.admin_contract_address }}";
+        
+        const contract = new web3.eth.Contract(adminContractAbi, adminContractAddress);
+        
+        const accounts = await web3.eth.getAccounts();
+        const userAccount = accounts[0];
+        
+        // Submit the approval
+        const transaction = await contract.methods.approveProposal(proposalId).send({
+            from: userAccount,
+            gas: 300000
+        });
+        
+        alert('Proposal approved successfully! Transaction hash: ' + transaction.transactionHash);
+    }
+});
+</script>
+{% endif %}
+
+<style>
+.proposal-details {
+    font-size: 0.9em;
+    line-height: 1.3;
+}
+
+.table td {
+    vertical-align: middle;
+}
+
+.badge {
+    font-size: 0.8em;
+}
+</style>
 {% endblock %} 

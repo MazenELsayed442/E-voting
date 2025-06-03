@@ -99,6 +99,146 @@
     </div>
 </div>
 
+<!-- Blockchain Admin Replacement Section -->
+{% if blockchain_connected %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-shield-lock me-2"></i>Blockchain Admin Replacement
+                </h5>
+                <small>Replace admin wallet addresses directly on the blockchain</small>
+            </div>
+            <div class="card-body">
+                {% if not user.wallet_address %}
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    You must connect your wallet to propose blockchain admin replacements.
+                    <a href="{% url 'wallet_connect' %}" class="btn btn-sm btn-primary ms-2">Connect Wallet</a>
+                </div>
+                {% else %}
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="mb-3">Current Blockchain Admins</h6>
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Admin #</th>
+                                        <th>Wallet Address</th>
+                                        <th>Status</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for admin in blockchain_admins %}
+                                    <tr>
+                                        <td>Admin {{ admin.index|add:1 }}</td>
+                                        <td>
+                                            <span class="font-monospace">{{ admin.address|slice:":6" }}...{{ admin.address|slice:"-4:" }}</span>
+                                            <button class="btn btn-sm btn-outline-secondary copy-address" 
+                                                    data-address="{{ admin.address }}" 
+                                                    title="Copy full address">
+                                                <i class="bi bi-copy"></i>
+                                            </button>
+                                        </td>
+                                        <td>
+                                            {% if admin.is_current_user %}
+                                            <span class="badge bg-info">You</span>
+                                            {% else %}
+                                            <span class="badge bg-success">Active</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if not admin.is_current_user %}
+                                            <button class="btn btn-sm btn-outline-danger select-blockchain-admin"
+                                                    data-admin-address="{{ admin.address }}"
+                                                    data-admin-index="{{ admin.index }}">
+                                                Replace
+                                            </button>
+                                            {% else %}
+                                            <small class="text-muted">Cannot replace yourself</small>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <h6 class="mb-3">New Admin Wallet</h6>
+                        <div class="mb-3">
+                            <label for="new-admin-address" class="form-label">New Admin Wallet Address</label>
+                            <input type="text" class="form-control font-monospace" id="new-admin-address" 
+                                   placeholder="0x..." pattern="0x[a-fA-F0-9]{40}">
+                            <div class="form-text">Enter the wallet address of the new admin</div>
+                        </div>
+                        
+                        <!-- Display selected candidates' wallet addresses for convenience -->
+                        <div class="mb-3">
+                            <label class="form-label">Registered User Wallets</label>
+                            <div class="list-group list-group-flush" style="max-height: 200px; overflow-y: auto;">
+                                {% for candidate in candidates %}
+                                {% if candidate.wallet_address %}
+                                <div class="list-group-item d-flex justify-content-between align-items-center py-2">
+                                    <div>
+                                        <strong>{{ candidate.username }}</strong><br>
+                                        <small class="font-monospace text-muted">{{ candidate.wallet_address }}</small>
+                                    </div>
+                                    <button class="btn btn-sm btn-outline-primary use-candidate-wallet"
+                                            data-address="{{ candidate.wallet_address }}"
+                                            data-name="{{ candidate.username }}">
+                                        Use
+                                    </button>
+                                </div>
+                                {% endif %}
+                                {% endfor %}
+                                {% if not candidates %}
+                                <div class="list-group-item text-muted">No registered users with wallets found</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Blockchain Replacement Form (Initially Hidden) -->
+<div class="card mt-4 d-none" id="blockchainReplacementForm">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">Submit Blockchain Admin Replacement Proposal</h5>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            <strong>Important:</strong> This will create a proposal on the blockchain that requires approval from other admins.
+        </div>
+        
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <label class="form-label">Admin to Replace</label>
+                <input type="text" class="form-control font-monospace" id="selected_blockchain_admin" readonly>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">New Admin Address</label>
+                <input type="text" class="form-control font-monospace" id="selected_new_admin" readonly>
+            </div>
+        </div>
+        
+        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+            <button type="button" class="btn btn-secondary" id="cancelBlockchainReplacementBtn">Cancel</button>
+            <button type="button" class="btn btn-primary" id="submitBlockchainReplacementBtn">Submit Proposal to Blockchain</button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- Replacement Form (Initially Hidden) -->
 <div class="card mt-4 d-none" id="replacementForm">
     <div class="card-header">
@@ -139,6 +279,7 @@
     </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/web3@1.8.0/dist/web3.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         // Variables to track selections
@@ -147,7 +288,12 @@
         let selectedCandidateId = null;
         let selectedCandidateName = null;
         
+        // Blockchain admin replacement variables
+        let selectedBlockchainAdmin = null;
+        let selectedNewAdmin = null;
+        
         const replacementForm = document.getElementById('replacementForm');
+        const blockchainReplacementForm = document.getElementById('blockchainReplacementForm');
         const selectedAdminIdInput = document.getElementById('selected_admin_id');
         const selectedAdminNameInput = document.getElementById('selected_admin_name');
         const selectedCandidateIdInput = document.getElementById('selected_candidate_id');
@@ -201,6 +347,134 @@
             });
         });
         
+        // Blockchain admin selection buttons
+        document.querySelectorAll('.select-blockchain-admin').forEach(button => {
+            button.addEventListener('click', function() {
+                // Remove previously selected class
+                document.querySelectorAll('.select-blockchain-admin').forEach(btn => {
+                    btn.closest('tr').classList.remove('table-warning');
+                });
+                
+                // Add selected class to this row
+                this.closest('tr').classList.add('table-warning');
+                
+                // Store blockchain admin information
+                selectedBlockchainAdmin = this.getAttribute('data-admin-address');
+                
+                // Update the form
+                document.getElementById('selected_blockchain_admin').value = selectedBlockchainAdmin;
+                
+                // Show blockchain form if both admin and new address are selected
+                updateBlockchainFormVisibility();
+            });
+        });
+        
+        // Use candidate wallet buttons
+        document.querySelectorAll('.use-candidate-wallet').forEach(button => {
+            button.addEventListener('click', function() {
+                const address = this.getAttribute('data-address');
+                const name = this.getAttribute('data-name');
+                
+                document.getElementById('new-admin-address').value = address;
+                selectedNewAdmin = address;
+                
+                // Update the form
+                document.getElementById('selected_new_admin').value = address;
+                
+                // Show blockchain form if both admin and new address are selected
+                updateBlockchainFormVisibility();
+                
+                // Visual feedback
+                this.classList.add('btn-success');
+                this.textContent = 'Selected';
+                setTimeout(() => {
+                    this.classList.remove('btn-success');
+                    this.classList.add('btn-outline-primary');
+                    this.textContent = 'Use';
+                }, 2000);
+            });
+        });
+        
+        // New admin address input
+        const newAdminAddressInput = document.getElementById('new-admin-address');
+        if (newAdminAddressInput) {
+            newAdminAddressInput.addEventListener('input', function() {
+                const address = this.value.trim();
+                if (address && /^0x[a-fA-F0-9]{40}$/.test(address)) {
+                    selectedNewAdmin = address;
+                    document.getElementById('selected_new_admin').value = address;
+                    updateBlockchainFormVisibility();
+                } else {
+                    selectedNewAdmin = null;
+                    document.getElementById('selected_new_admin').value = '';
+                    updateBlockchainFormVisibility();
+                }
+            });
+        }
+        
+        // Copy address buttons
+        document.querySelectorAll('.copy-address').forEach(button => {
+            button.addEventListener('click', function() {
+                const address = this.getAttribute('data-address');
+                navigator.clipboard.writeText(address).then(() => {
+                    // Visual feedback
+                    const originalHTML = this.innerHTML;
+                    this.innerHTML = '<i class="bi bi-check"></i>';
+                    this.classList.add('btn-success');
+                    setTimeout(() => {
+                        this.innerHTML = originalHTML;
+                        this.classList.remove('btn-success');
+                    }, 2000);
+                });
+            });
+        });
+        
+        // Submit blockchain replacement proposal
+        const submitBlockchainBtn = document.getElementById('submitBlockchainReplacementBtn');
+        if (submitBlockchainBtn) {
+            submitBlockchainBtn.addEventListener('click', async function() {
+                if (!selectedBlockchainAdmin || !selectedNewAdmin) {
+                    alert('Please select both an admin to replace and a new admin address.');
+                    return;
+                }
+                
+                try {
+                    submitBlockchainBtn.disabled = true;
+                    submitBlockchainBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting...';
+                    
+                    await submitBlockchainReplacement(selectedBlockchainAdmin, selectedNewAdmin);
+                    
+                } catch (error) {
+                    console.error('Error submitting blockchain replacement:', error);
+                    alert('Error submitting blockchain replacement: ' + error.message);
+                } finally {
+                    submitBlockchainBtn.disabled = false;
+                    submitBlockchainBtn.innerHTML = 'Submit Proposal to Blockchain';
+                }
+            });
+        }
+        
+        // Cancel blockchain replacement
+        const cancelBlockchainBtn = document.getElementById('cancelBlockchainReplacementBtn');
+        if (cancelBlockchainBtn) {
+            cancelBlockchainBtn.addEventListener('click', function() {
+                // Reset blockchain selections
+                document.querySelectorAll('.select-blockchain-admin').forEach(btn => {
+                    btn.closest('tr').classList.remove('table-warning');
+                });
+                
+                selectedBlockchainAdmin = null;
+                selectedNewAdmin = null;
+                
+                document.getElementById('new-admin-address').value = '';
+                document.getElementById('selected_blockchain_admin').value = '';
+                document.getElementById('selected_new_admin').value = '';
+                
+                // Hide blockchain form
+                blockchainReplacementForm.classList.add('d-none');
+            });
+        }
+        
         // Cancel button
         document.getElementById('cancelReplacementBtn').addEventListener('click', function() {
             // Reset selected status
@@ -218,13 +492,71 @@
             replacementForm.classList.add('d-none');
         });
         
-        // Helper function to check if form should be displayed
+        // Helper function to check if database replacement form should be displayed
         function updateFormVisibility() {
             if (selectedAdminId && selectedCandidateId) {
                 replacementForm.classList.remove('d-none');
             } else {
                 replacementForm.classList.add('d-none');
             }
+        }
+        
+        // Helper function to check if blockchain replacement form should be displayed
+        function updateBlockchainFormVisibility() {
+            if (selectedBlockchainAdmin && selectedNewAdmin) {
+                if (blockchainReplacementForm) {
+                    blockchainReplacementForm.classList.remove('d-none');
+                }
+            } else {
+                if (blockchainReplacementForm) {
+                    blockchainReplacementForm.classList.add('d-none');
+                }
+            }
+        }
+        
+        // Function to submit blockchain replacement proposal
+        async function submitBlockchainReplacement(oldAdmin, newAdmin) {
+            if (typeof window.ethereum === 'undefined') {
+                throw new Error('MetaMask is not installed');
+            }
+            
+            // Request account access
+            await window.ethereum.request({ method: 'eth_requestAccounts' });
+            
+            const web3 = new Web3(window.ethereum);
+            
+            // Get the VotingAdmin contract
+            const response = await fetch('/api/contract-info/');
+            const contractInfo = await response.json();
+            
+            const contract = new web3.eth.Contract(
+                contractInfo.voting_admin_abi,
+                contractInfo.voting_admin_address
+            );
+            
+            const accounts = await web3.eth.getAccounts();
+            const userAccount = accounts[0];
+            
+            // Submit the proposal
+            const transaction = await contract.methods.proposeReplaceAdmin(oldAdmin, newAdmin).send({
+                from: userAccount,
+                gas: 500000
+            });
+            
+            alert('Blockchain replacement proposal submitted successfully! Transaction hash: ' + transaction.transactionHash);
+            
+            // Reset form
+            selectedBlockchainAdmin = null;
+            selectedNewAdmin = null;
+            document.getElementById('new-admin-address').value = '';
+            document.getElementById('selected_blockchain_admin').value = '';
+            document.getElementById('selected_new_admin').value = '';
+            blockchainReplacementForm.classList.add('d-none');
+            
+            // Remove selection highlighting
+            document.querySelectorAll('.select-blockchain-admin').forEach(btn => {
+                btn.closest('tr').classList.remove('table-warning');
+            });
         }
     });
 </script>

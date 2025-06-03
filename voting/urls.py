@@ -21,7 +21,10 @@ from .views import (
     update_transaction_hash,
     
     # Password reset views
-    forgot_password, reset_password
+    forgot_password, reset_password,
+    
+    # New contract-info API endpoint
+    contract_info
 )
 
 urlpatterns = [
@@ -77,6 +80,7 @@ urlpatterns = [
     path('admin-portal/api/approve-proposal/', admin_approve_proposal, name='admin_approve_proposal'),
     path('admin-portal/api/reject-proposal/', admin_reject_proposal, name='admin_reject_proposal'),
     path('admin-portal/api/approve-replacement-request/', admin_approve_replacement_request, name='admin_approve_replacement_request'),
+    path('api/contract-info/', contract_info, name='contract_info'),
     
     # Pool cancellation approval flow
     path('admin-portal/pending-cancellations/', admin_pending_cancellations, name='admin_pending_cancellations'),

@@ -1384,10 +1384,33 @@ def admin_replace_admin(request):
     # Fetch potential candidates (users with voter type who could become admins)
     candidates = CustomUser.objects.filter(user_type='voter', is_active=True, is_verified=True)
     
+    # Fetch blockchain admin addresses
+    blockchain_admins = []
+    try:
+        from .utils.contract_utils import get_web3, get_admin_contract
+        
+        web3 = get_web3()
+        if web3.is_connected():
+            admin_contract = get_admin_contract()
+            # Get current admin addresses from blockchain
+            admin_addresses = admin_contract.functions.getAdmins().call()
+            
+            for i, address in enumerate(admin_addresses):
+                if address != '0x0000000000000000000000000000000000000000':  # Skip zero addresses
+                    blockchain_admins.append({
+                        'index': i,
+                        'address': address,
+                        'is_current_user': address.lower() == request.user.wallet_address.lower() if request.user.wallet_address else False
+                    })
+    except Exception as e:
+        print(f"Error fetching blockchain admins: {e}")
+    
     context = {
         'active_tab': 'replace_admin',
         'admins': admins,
-        'candidates': candidates
+        'candidates': candidates,
+        'blockchain_admins': blockchain_admins,
+        'blockchain_connected': len(blockchain_admins) > 0
     }
     return render(request, "voting/admin_replace_admin.html", context)
 
@@ -1420,7 +1443,8 @@ def admin_proposals(request):
             'requester': req.requested_by.email,
             'created_at': req.created_at.strftime('%Y-%m-%d'),
             'details': f'Request to cancel pool #{req.pool_id}. Reason: {req.reason}',
-            'status': 'Executed' if req.is_executed else 'Pending'
+            'status': 'Executed' if req.is_executed else 'Pending',
+            'source': 'database'
         })
     
     # Add admin replacement requests to proposals
@@ -1431,11 +1455,94 @@ def admin_proposals(request):
             'requester': req.initiator.email,
             'created_at': req.created_at.strftime('%Y-%m-%d'),
             'details': f'Request to replace {req.admin_to_replace.username} with {req.replacement_candidate.username}. Reason: {req.reason}',
-            'status': req.get_status_display()
+            'status': req.get_status_display(),
+            'source': 'database'
         })
     
-    # Sort all proposals by creation date (newest first)
-    proposals.sort(key=lambda x: x['created_at'], reverse=True)
+    # Fetch blockchain proposals
+    blockchain_proposals = []
+    try:
+        from .utils.contract_utils import get_web3, get_admin_contract
+        
+        web3 = get_web3()
+        if web3.is_connected():
+            admin_contract = get_admin_contract()
+            
+            # Get the next proposal ID to know how many proposals exist
+            next_proposal_id = admin_contract.functions.nextProposalId().call()
+            
+            # Fetch all proposals
+            for proposal_id in range(next_proposal_id):
+                try:
+                    proposal_data = admin_contract.functions.getProposal(proposal_id).call()
+                    id, p_type, proposer, data, approval_count, executed = proposal_data
+                    
+                    # Decode proposal type (0 = CancelPool, 1 = ReplaceAdmin)
+                    proposal_type_text = "Cancel Pool" if p_type == 0 else "Replace Admin"
+                    
+                    # Check if current user has already approved this proposal
+                    user_approved = False
+                    if request.user.wallet_address:
+                        try:
+                            user_approved = admin_contract.functions.isProposalApprovedBy(
+                                proposal_id, 
+                                request.user.wallet_address
+                            ).call()
+                        except:
+                            pass
+                    
+                    # Determine proposal status
+                    status_text = "Executed" if executed else f"Pending ({approval_count}/2 approvals)"
+                    if executed:
+                        status_text = "Executed"
+                    elif approval_count >= 2:
+                        status_text = "Ready to Execute"
+                    else:
+                        status_text = f"Pending ({approval_count}/2 approvals)"
+                    
+                    # Decode proposal details based on type
+                    details = ""
+                    if p_type == 1:  # ReplaceAdmin
+                        try:
+                            # Decode the data to get old and new admin addresses
+                            decoded_data = web3.codec.decode(['address', 'address'], data)
+                            old_admin, new_admin = decoded_data
+                            details = f"Replace admin {old_admin[:6]}...{old_admin[-4:]} with {new_admin[:6]}...{new_admin[-4:]}"
+                        except:
+                            details = "Admin replacement proposal"
+                    else:  # CancelPool
+                        try:
+                            decoded_data = web3.codec.decode(['uint256'], data)
+                            pool_id = decoded_data[0]
+                            details = f"Cancel pool #{pool_id}"
+                        except:
+                            details = "Pool cancellation proposal"
+                    
+                    blockchain_proposals.append({
+                        'id': id,
+                        'type': proposal_type_text,
+                        'requester': f"{proposer[:6]}...{proposer[-4:]}",
+                        'created_at': 'N/A',  # Blockchain doesn't store creation timestamp
+                        'details': details,
+                        'status': status_text,
+                        'source': 'blockchain',
+                        'approval_count': approval_count,
+                        'executed': executed,
+                        'user_approved': user_approved,
+                        'can_approve': not user_approved and not executed and request.user.wallet_address
+                    })
+                    
+                except Exception as e:
+                    print(f"Error fetching blockchain proposal {proposal_id}: {e}")
+                    
+    except Exception as e:
+        print(f"Error connecting to blockchain for proposals: {e}")
+    
+    # Add blockchain proposals to the main proposals list
+    proposals.extend(blockchain_proposals)
+    
+    # Sort all proposals by creation date (newest first) - blockchain proposals will be at the end since they don't have dates
+    proposals.sort(key=lambda x: x['created_at'] if x['created_at'] != 'N/A' else '0000-00-00', reverse=True)
     
     # إذا لم توجد طلبات، يمكن إضافة مثال توضيحي (اختياري)
     if not proposals:
@@ -1445,13 +1552,26 @@ def admin_proposals(request):
             'requester': 'System',
             'created_at': '-----',
             'details': 'No cancellation or replacement requests found.',
-            'status': 'N/A'
+            'status': 'N/A',
+            'source': 'system'
         }]
+    
+    # Get contract info for blockchain interactions
+    contract_info = {}
+    try:
+        from .utils.contract_utils import get_admin_contract_address, load_abi
+        contract_info = {
+            'admin_contract_address': get_admin_contract_address(),
+            'admin_contract_abi': load_abi("artifacts/contracts/VotingAdmin.sol/VotingAdmin.json")
+        }
+    except Exception as e:
+        print(f"Error loading contract info: {e}")
     
     context = {
         'active_tab': 'proposals',
         'proposals': proposals,
-        'executed_proposals': executed_proposals.exists()
+        'executed_proposals': executed_proposals.exists(),
+        'contract_info': contract_info
     }
     return render(request, "voting/admin_proposals.html", context)
 
@@ -2024,37 +2144,64 @@ def admin_approve_replacement_request(request):
     
     return redirect('admin_proposals')
 
-@csrf_exempt
-@admin_required
+@login_required
 def update_transaction_hash(request, request_id):
-    """View to update the transaction hash after it's executed on the blockchain."""
+    """Update the transaction hash for a cancellation request"""
     if request.method == 'POST':
-        try:
-            print("enterted update_transaction_hash correctly")
-            # Get the cancellation request
-            cancellation_request = get_object_or_404(PoolCancellationRequest, id=request_id)
-            
-            # Get the transaction hash from request body
-            data = json.loads(request.body)
-            tx_hash = data.get('transaction_hash')
-            
-            if not tx_hash:
-                return JsonResponse({'success': False, 'error': 'No transaction hash provided'}, status=400)
-            
-            # Update the cancellation request
-            cancellation_request.transaction_hash = tx_hash
-            cancellation_request.status = 'executed'
-            cancellation_request.save()
-            
-            return JsonResponse({'success': True, 'message': 'Transaction hash updated successfully'})
-            
-        except PoolCancellationRequest.DoesNotExist:
-            return JsonResponse({'success': False, 'error': 'Cancellation request not found'}, status=404)
+        import json
+        data = json.loads(request.body)
+        transaction_hash = data.get('transaction_hash')
         
-        except Exception as e:
-            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+        try:
+            cancel_request = PoolCancellationRequest.objects.get(id=request_id)
+            cancel_request.transaction_hash = transaction_hash
+            cancel_request.save()
+            
+            return JsonResponse({'success': True})
+        except PoolCancellationRequest.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Request not found'})
     
-    return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=405)
+    return JsonResponse({'success': False, 'error': 'Invalid method'})
+
+
+@login_required
+def contract_info(request):
+    """Provide contract information for frontend blockchain interactions"""
+    try:
+        from .utils.contract_utils import get_admin_contract_address, get_voting_contract_address
+        import json
+        import os
+        
+        # Get contract addresses
+        admin_address = get_admin_contract_address()
+        voting_address = get_voting_contract_address()
+        
+        # Load ABIs from files
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        
+        # Load VotingAdmin ABI
+        admin_abi_path = os.path.join(base_dir, 'blockchain', 'artifacts', 'contracts', 'VotingAdmin.sol', 'VotingAdmin.json')
+        with open(admin_abi_path, 'r') as f:
+            admin_contract_data = json.load(f)
+            admin_abi = admin_contract_data['abi']
+        
+        # Load Voting ABI
+        voting_abi_path = os.path.join(base_dir, 'blockchain', 'artifacts', 'contracts', 'Voting.sol', 'Voting.json')
+        with open(voting_abi_path, 'r') as f:
+            voting_contract_data = json.load(f)
+            voting_abi = voting_contract_data['abi']
+        
+        return JsonResponse({
+            'voting_admin_address': admin_address,
+            'voting_admin_abi': admin_abi,
+            'voting_address': voting_address,
+            'voting_abi': voting_abi
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Failed to load contract information: {str(e)}'
+        }, status=500)
 
 def generate_reset_code():
     """Generate a random 6-digit code"""
