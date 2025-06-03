@@ -32,7 +32,7 @@
                                 <td>{{ proposal.created_at }}</td>
                                 <td><span class="badge bg-warning">Pending</span></td>
                                 <td>
-                                    <a href="{% url 'admin_view_proposal' proposal.id %}" class="btn btn-sm btn-primary">
+                                    <a href="{% url 'admin_view_proposal' proposal.id %}?type={{ proposal.type|urlencode }}" class="btn btn-sm btn-primary">
                                         <i class="bi bi-eye"></i> View
                                     </a>
                                 </td>
@@ -78,7 +78,7 @@
                                 <td>{{ proposal.created_at }}</td>
                                 <td><span class="badge bg-success">Executed</span></td>
                                 <td>
-                                    <a href="{% url 'admin_view_proposal' proposal.id %}" class="btn btn-sm btn-primary">
+                                    <a href="{% url 'admin_view_proposal' proposal.id %}?type={{ proposal.type|urlencode }}" class="btn btn-sm btn-primary">
                                         <i class="bi bi-eye"></i> View
                                     </a>
                                 </td>
