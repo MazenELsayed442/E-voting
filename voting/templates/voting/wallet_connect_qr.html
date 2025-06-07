@@ -1,0 +1,213 @@
+{% extends 'voting/admin_base.html' %}
+{% block admin_title %}Connect Wallet via QR{% endblock %}
+
+{% block admin_content %}
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Connect Wallet via MetaMask QR Scanner</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-8 offset-md-2">
+                <div class="wallet-qr-section text-center mb-4">
+                    <div id="qrCodeContainer" class="mb-3">
+                        <!-- QR Code will be inserted here -->
+                        <div id="qrcode" style="width:250px; height:250px; margin:0 auto;"></div>
+                    </div>
+                    <p class="text-muted">Open MetaMask on your phone, tap the scan button, and scan this QR code to connect your wallet</p>
+                    <div id="connectionStatus" class="alert alert-info">
+                        Waiting for wallet connection...
+                    </div>
+                    <div id="walletInfo" style="display: none;" class="alert alert-success">
+                        <strong>Wallet connected!</strong><br>
+                        Address: <span id="connectedWalletAddress"></span>
+                    </div>
+                    <div id="allowVoterSection" style="display: none;" class="mt-3">
+                        <button id="allowVoterBtn" class="btn btn-primary">Add to Allowed Voters</button>
+                        <div id="allowVoterStatus" class="mt-2"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% load static %}
+<!-- Use the static version of the QR code library -->
+<script src="{% static 'voting/js/lib/qrcode.min.js' %}"></script>
+<!-- Include ethers.js for blockchain interaction -->
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    try {
+        // Generate a unique session ID
+        const sessionId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        
+        // Create the URL to encode in the QR with the IP address instead of localhost
+        const baseUrl = "http://192.168.234.185:8000";
+        const receiverPath = "{% url 'wallet_connect_receiver' session_id='SESSION_ID_PLACEHOLDER' %}".replace('SESSION_ID_PLACEHOLDER', sessionId);
+        const receiverUrl = baseUrl + receiverPath;
+        
+        // Get the QR code container
+        const qrcodeElement = document.getElementById("qrcode");
+        
+        // Generate QR code with an external API (fallback method)
+        const qrUrl = "https://api.qrserver.com/v1/create-qr-code/?data=" + encodeURIComponent(receiverUrl) + "&size=250x250";
+        qrcodeElement.innerHTML = `<img src="${qrUrl}" alt="QR Code" style="width:250px; height:250px;">`;
+        
+        // Contract data for interaction
+        const CONTRACT_ADDRESS = "{{ voting_contract_address }}";
+        const CONTRACT_ABI = {{ voting_contract_abi|safe }};
+        
+        // Store connected wallet address
+        let connectedWalletAddress = null;
+        
+        // Set up polling to check if wallet address has been received
+        const pollForWalletAddress = setInterval(function() {
+            checkWalletStatus(sessionId);
+        }, 3000); // Poll every 3 seconds
+        
+        // Function to check if a wallet has been connected
+        function checkWalletStatus(sessionId) {
+            fetch("{% url 'wallet_connect_qr_receive' %}", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": "{{ csrf_token }}"
+                },
+                body: JSON.stringify({
+                    action: "check_status",
+                    session_id: sessionId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.wallet_address) {
+                    clearInterval(pollForWalletAddress);
+                    document.getElementById("connectionStatus").className = "alert alert-success";
+                    document.getElementById("connectionStatus").innerHTML = 
+                        `<strong>Wallet connected!</strong>`;
+                    document.getElementById("walletInfo").style.display = "block";
+                    document.getElementById("connectedWalletAddress").textContent = data.wallet_address;
+                    
+                    // Store the wallet address for later use
+                    connectedWalletAddress = data.wallet_address;
+                    
+                    // Show the Allow Voter section
+                    document.getElementById("allowVoterSection").style.display = "block";
+                    
+                    // Check if this voter is already allowed
+                    checkIfVoterIsAllowed(connectedWalletAddress);
+                }
+            })
+            .catch(error => {
+                console.error("Error checking wallet status:", error);
+            });
+        }
+        
+        // Function to check if voter is already allowed
+        async function checkIfVoterIsAllowed(address) {
+            try {
+                if (typeof window.ethereum === 'undefined') {
+                    console.error("MetaMask not installed");
+                    document.getElementById("allowVoterStatus").innerHTML = 
+                        '<div class="alert alert-warning">MetaMask extension required to check voter status</div>';
+                    return;
+                }
+                
+                const provider = new ethers.providers.Web3Provider(window.ethereum);
+                const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
+                
+                // Call the isVoterAllowed function
+                const isAllowed = await contract.isVoterAllowed(address);
+                
+                if (isAllowed) {
+                    document.getElementById("allowVoterBtn").disabled = true;
+                    document.getElementById("allowVoterStatus").innerHTML = 
+                        '<div class="alert alert-success">This wallet is already allowed to vote</div>';
+                } else {
+                    document.getElementById("allowVoterBtn").disabled = false;
+                    document.getElementById("allowVoterStatus").innerHTML = 
+                        '<div class="alert alert-info">This wallet is not yet allowed to vote</div>';
+                }
+            } catch (error) {
+                console.error("Error checking voter status:", error);
+                document.getElementById("allowVoterStatus").innerHTML = 
+                    `<div class="alert alert-danger">Error checking voter status: ${error.message}</div>`;
+            }
+        }
+        
+        // Function to add voter to allowed list
+        async function addVoterToAllowedList(address) {
+            try {
+                if (typeof window.ethereum === 'undefined') {
+                    alert("MetaMask extension is required to add voters");
+                    return;
+                }
+                
+                // Request account access if needed
+                await window.ethereum.request({ method: 'eth_requestAccounts' });
+                
+                const provider = new ethers.providers.Web3Provider(window.ethereum);
+                const signer = provider.getSigner();
+                const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+                
+                // Update UI to show transaction is in progress
+                document.getElementById("allowVoterBtn").disabled = true;
+                document.getElementById("allowVoterStatus").innerHTML = 
+                    '<div class="alert alert-info">Transaction in progress...</div>';
+                
+                // Call the addVoter function on the contract
+                const tx = await contract.addVoter(address, { gasLimit: 200000 });
+                
+                // Update UI to show transaction is pending
+                document.getElementById("allowVoterStatus").innerHTML = 
+                    `<div class="alert alert-info">Transaction submitted (hash: ${tx.hash}). Waiting for confirmation...</div>`;
+                
+                // Wait for transaction to be confirmed
+                await tx.wait();
+                
+                // Update UI to show success
+                document.getElementById("allowVoterStatus").innerHTML = 
+                    '<div class="alert alert-success">Voter successfully added to allowed list!</div>';
+                document.getElementById("allowVoterBtn").disabled = true;
+            } catch (error) {
+                console.error("Error adding voter:", error);
+                
+                // Extract error message
+                let errorMessage = error.message || "Unknown error";
+                if (error.data && error.data.message) {
+                    errorMessage = error.data.message;
+                } else if (error.error && error.error.message) {
+                    errorMessage = error.error.message;
+                }
+                
+                // Update UI to show error
+                document.getElementById("allowVoterStatus").innerHTML = 
+                    `<div class="alert alert-danger">Error adding voter: ${errorMessage}</div>`;
+                document.getElementById("allowVoterBtn").disabled = false;
+            }
+        }
+        
+        // Add click handler for the Allow Voter button
+        document.getElementById("allowVoterBtn").addEventListener("click", function() {
+            if (connectedWalletAddress) {
+                addVoterToAllowedList(connectedWalletAddress);
+            } else {
+                alert("No wallet connected");
+            }
+        });
+        
+        // Clean up the interval when navigating away
+        window.addEventListener('beforeunload', function() {
+            clearInterval(pollForWalletAddress);
+        });
+    } catch (err) {
+        console.error("Error in QR code setup:", err);
+        document.getElementById("connectionStatus").innerHTML = "Error: " + err.message;
+        document.getElementById("connectionStatus").className = "alert alert-danger";
+    }
+});
+</script>
+{% endblock %} 

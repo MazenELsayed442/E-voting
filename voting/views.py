@@ -1584,6 +1584,110 @@ def wallet_connect(request):
     return render(request, "voting/wallet_connect.html", context)
 
 @admin_required
+def wallet_connect_qr(request):
+    """Page to connect blockchain wallet via QR code scanning."""
+    from .utils.contract_utils import get_voting_contract_address, load_abi
+    
+    # Get contract address and ABI for the Voting contract
+    voting_contract_address = get_voting_contract_address()
+    
+    # Load ABI and ensure it's properly JSON serialized for JS
+    voting_contract_abi = load_abi("artifacts/contracts/Voting.sol/Voting.json")
+    
+    # Use json.dumps to properly format the ABI as a JSON string
+    import json
+    voting_contract_abi_json = json.dumps(voting_contract_abi)
+    
+    context = {
+        'active_tab': 'wallet_qr',
+        'received_wallet': None,
+        'voting_contract_address': voting_contract_address,
+        'voting_contract_abi': voting_contract_abi_json
+    }
+    return render(request, "voting/wallet_connect_qr.html", context)
+
+@csrf_exempt
+def wallet_connect_qr_receive(request):
+    """API endpoint to receive wallet address from MetaMask QR code scanning."""
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            session_id = data.get('session_id')
+            action = data.get('action')
+            
+            # Action to receive a new wallet address from MetaMask
+            if action == 'receive_wallet' and 'wallet_address' in data:
+                wallet_address = data.get('wallet_address')
+                # Log the received wallet address
+                print(f"Received wallet address: {wallet_address}")
+                
+                # Store the wallet address in a global session variable accessible to all
+                if session_id:
+                    # Create a special global key that doesn't depend on user session
+                    wallet_key = f"metamask_wallet_global_{session_id}"
+                    # Store in Django's cache for cross-session access
+                    from django.core.cache import cache
+                    cache.set(wallet_key, wallet_address, 60*10)  # Keep for 10 minutes
+                    # Also store in session for backup
+                    session_key = f"metamask_wallet_{session_id}"
+                    request.session[session_key] = wallet_address
+                
+                # Option to save to user account if needed
+                if request.user.is_authenticated:
+                    request.user.wallet_address = wallet_address
+                    request.user.save(update_fields=['wallet_address'])
+                    print(f"Updated user {request.user.username} with wallet address: {wallet_address}")
+                
+                return JsonResponse({
+                    'success': True,
+                    'message': 'Wallet address received successfully',
+                    'wallet_address': wallet_address
+                })
+            
+            # Action to check if a wallet address has been registered for this session
+            elif action == 'check_status' and session_id:
+                # First try from cache (global storage)
+                from django.core.cache import cache
+                wallet_key = f"metamask_wallet_global_{session_id}"
+                wallet_address = cache.get(wallet_key)
+                
+                # If not found in cache, try session
+                if not wallet_address:
+                    session_key = f"metamask_wallet_{session_id}"
+                    wallet_address = request.session.get(session_key)
+                    
+                print(f"Check status for {session_id}: found wallet {wallet_address}")
+                
+                return JsonResponse({
+                    'success': True,
+                    'wallet_address': wallet_address
+                })
+                
+            else:
+                return JsonResponse({
+                    'success': False, 
+                    'error': 'Invalid request parameters'
+                })
+                
+        except Exception as e:
+            print(f"Error in wallet_connect_qr_receive: {str(e)}")
+            return JsonResponse({
+                'success': False,
+                'error': str(e)
+            })
+    
+    return JsonResponse({'success': False, 'error': 'Only POST method is allowed'})
+
+def wallet_connect_receiver(request, session_id):
+    """Handle wallet connection after QR code scan from MetaMask."""
+    # This view renders the page that will handle the MetaMask connection
+    # No authentication required for this view
+    context = {
+        'session_id': session_id,
+    }
+    return render(request, "voting/wallet_connect_receiver.html", context)
+
+@admin_required
 def admin_view_pool(request, pool_id):
     """View details of a specific voting pool with real blockchain data."""
     from .utils.contract_utils import get_contract, get_pool_details

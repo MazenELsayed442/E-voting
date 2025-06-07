@@ -51,6 +51,24 @@
     </div>
 </div>
 
+<!-- Status Modal -->
+<div class="modal fade" id="statusModal" tabindex="-1" aria-labelledby="statusModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="statusModalLabel">Transaction Status</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p id="status-message" class="mb-0">Processing...</p>
+            </div>
+            <div class="modal-footer" id="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Cancel Pool Modal -->
 <div class="modal fade" id="cancelPoolModal" tabindex="-1" aria-labelledby="cancelPoolModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -74,24 +92,17 @@
                         <textarea class="form-control" id="reasonTextarea" name="reason" rows="3" required></textarea>
                     </div>
                 </div>
-                
-                <div class="mb-3">
-                    <label for="reasonTextarea" class="form-label">Reason for Cancellation</label>
-                    <textarea class="form-control" id="reasonTextarea" name="reason" rows="3" required></textarea>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" id="confirmCancelBtn" class="btn btn-danger" onclick="cancelPool()">Confirm Cancellation</button>
                 </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" id="confirmCancelBtn" class="btn btn-danger">Confirm Cancellation</button>
-            </div>
+            </form>
         </div>
     </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 <script>
-    const adminContractAddress = "{{ admin_contract_address|default:'0x5FbDB2315678afecb367f032d93F642f64180aa3' }}";
-    
     document.addEventListener('DOMContentLoaded', function() {
         // Set the pool ID and name in the modal when it's opened
         const cancelPoolModal = document.getElementById('cancelPoolModal');
@@ -106,105 +117,11 @@
             });
         }
 
-        // Handle form submission with MetaMask integration
+        // Prevent form submission (we'll handle it via the button click)
         const cancelPoolForm = document.getElementById('cancelPoolForm');
         if (cancelPoolForm) {
-            cancelPoolForm.addEventListener('submit', async function(event) {
+            cancelPoolForm.addEventListener('submit', function(event) {
                 event.preventDefault();
-                
-                const poolId = document.getElementById('poolId').value;
-                const reason = document.getElementById('reasonTextarea').value;
-                
-                // Validate form
-                if (!poolId || !reason) {
-                    alert('Please fill in all required fields.');
-                    return;
-                }
-                
-                // Check if MetaMask is installed
-                if (typeof window.ethereum === 'undefined') {
-                    alert('MetaMask is not installed. Please install MetaMask to sign the transaction.');
-                    return;
-                }
-                
-                try {
-                    const provider = new ethers.providers.Web3Provider(window.ethereum);
-                    await provider.send("eth_requestAccounts", []);
-                    const signer = provider.getSigner();
-                    
-                    // Get admin contract details
-                    const ADMIN_CONTRACT_ADDRESS = "{{ admin_contract_address|default:'0x0' }}";
-                    let ADMIN_CONTRACT_ABI = [];
-                    
-                    try {
-                        // Try to parse the ABI if it exists
-                        {% if admin_contract_abi %}
-                        ADMIN_CONTRACT_ABI = JSON.parse('{{ admin_contract_abi|escapejs }}');
-                        {% endif %}
-                    } catch (error) {
-                        console.error("Error parsing contract ABI:", error);
-                    }
-                    
-                    console.log("Contract Address:", ADMIN_CONTRACT_ADDRESS);
-                    console.log("Contract ABI defined:", ADMIN_CONTRACT_ABI.length > 0 ? "Yes" : "No");
-                    
-                    if (ADMIN_CONTRACT_ADDRESS === '0x0' || ADMIN_CONTRACT_ABI.length === 0) {
-                        alert('Contract details not available. Please refresh the page or contact support.');
-                        return;
-                    }
-                    
-                    const contract = new ethers.Contract(ADMIN_CONTRACT_ADDRESS, ADMIN_CONTRACT_ABI, signer);
-                    
-                    // First call the blockchain to propose cancellation
-                    const tx = await contract.proposeCancelPool(poolId);
-                    alert('Transaction submitted. Waiting for confirmation...');
-                    
-                    // Wait for transaction to be mined
-                    const receipt = await tx.wait();
-                    
-                    // Extract proposalId from ProposalCreated event
-                    const event = receipt.events.find(e => e.event === 'ProposalCreated');
-                    if (!event) {
-                        alert('Could not find ProposalCreated event in transaction receipt.');
-                        return;
-                    }
-                    const blockchainProposalId = event.args.proposalId.toString();
-                    
-                    // Transaction was successful, now submit the form to the server
-                    const formData = new FormData();
-                    formData.append('pool_id', poolId);
-                    formData.append('reason', reason);
-                    formData.append('transaction_hash', receipt.transactionHash);
-                    formData.append('blockchain_proposal_id', blockchainProposalId);
-                    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
-                    
-                    const response = await fetch('{% url "admin_submit_cancel_request" %}', {
-                        method: 'POST',
-                        body: formData
-                    });
-                    
-                    if (response.ok) {
-                        alert('Cancellation request submitted successfully!');
-                        window.location.href = '{% url "admin_pending_cancellations" %}';
-                    } else {
-                        // Enhanced error logging:
-                        let errorText = 'Error submitting cancellation request to the server.';
-                        try {
-                            const responseBody = await response.text(); // Get raw response body
-                            errorText += `\nStatus: ${response.status} (${response.statusText})\nServer response: ${responseBody}`;
-                            console.error('Server Error Status:', response.status, response.statusText);
-                            console.error('Server Response Body:', responseBody);
-                        } catch (e) {
-                            console.error('Failed to parse response body:', e);
-                            errorText += `\nStatus: ${response.status} (${response.statusText}). Could not read response body.`;
-                        }
-                        alert(errorText);
-                    }
-                    
-                } catch (error) {
-                    console.error('Error:', error);
-                    alert('Error: ' + error.message);
-                }
             });
         }
     });
@@ -240,7 +157,7 @@
             return;
         }
         
-        // Hide the cancel modal
+        // Close the cancel modal
         const cancelModal = bootstrap.Modal.getInstance(document.getElementById('cancelPoolModal'));
         cancelModal.hide();
         
@@ -259,71 +176,90 @@
             
             updateStatus('Preparing transaction to cancel pool #' + poolId + '...');
             
-            // Basic ABI for proposeCancelPool function in admin contract
-            const contractABI = [{
-                "inputs": [
-                    {"internalType": "uint256", "name": "_poolId", "type": "uint256"}
-                ],
-                "name": "proposeCancelPool",
-                "outputs": [],
-                "stateMutability": "nonpayable",
-                "type": "function"
-            }];
+            // Get admin contract details
+            const ADMIN_CONTRACT_ADDRESS = "{{ admin_contract_address|default:'0x0' }}";
+            let ADMIN_CONTRACT_ABI = [];
             
-            const contract = new ethers.Contract(adminContractAddress, contractABI, signer);
+            try {
+                // Try to parse the ABI if it exists
+                {% if admin_contract_abi %}
+                ADMIN_CONTRACT_ABI = JSON.parse('{{ admin_contract_abi|escapejs }}');
+                {% endif %}
+            } catch (error) {
+                console.error("Error parsing contract ABI:", error);
+                updateStatus('Error parsing contract ABI: ' + error.message, true);
+                return;
+            }
+            
+            if (ADMIN_CONTRACT_ADDRESS === '0x0' || ADMIN_CONTRACT_ABI.length === 0) {
+                updateStatus('Contract details not available. Please refresh the page.', true);
+                return;
+            }
+            
+            const contract = new ethers.Contract(ADMIN_CONTRACT_ADDRESS, ADMIN_CONTRACT_ABI, signer);
             
             updateStatus('Sending transaction. Please sign it in MetaMask...');
             
-            // Send the transaction with a high gas limit to avoid estimation issues
-            const tx = await contract.proposeCancelPool(
-                poolId,
-                { 
-                    gasLimit: 5000000  // Set high gas limit to avoid estimation errors
-                }
-            );
+            // Send the transaction
+            const tx = await contract.proposeCancelPool(poolId);
             
-            updateStatus('Transaction sent successfully! Waiting for confirmation...');
+            updateStatus('Transaction sent! Waiting for confirmation...');
             
             // Wait for confirmation
             const receipt = await tx.wait();
             
-            // Save reason to backend for reference
-            await saveReasonToBackend(poolId, reason, receipt.transactionHash);
+            // Extract proposalId from ProposalCreated event
+            let blockchainProposalId = null;
+            const event = receipt.events.find(e => e.event === 'ProposalCreated');
+            if (event) {
+                blockchainProposalId = event.args.proposalId.toString();
+            }
             
-            // Transaction success
-            updateStatus('Pool cancellation proposal submitted successfully!<br>Transaction Hash: ' + receipt.transactionHash, false, true);
+            // Save to backend
+            const formData = new FormData();
+            formData.append('pool_id', poolId);
+            formData.append('reason', reason);
+            formData.append('transaction_hash', receipt.transactionHash);
+            if (blockchainProposalId) {
+                formData.append('blockchain_proposal_id', blockchainProposalId);
+            }
+            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
             
-            // Add dashboard button
-            const footer = document.getElementById('modal-footer');
-            const dashboardBtn = document.createElement('a');
-            dashboardBtn.href = "{% url 'admin_dashboard' %}";
-            dashboardBtn.className = "btn btn-primary";
-            dashboardBtn.innerText = "Go to Dashboard";
-            footer.prepend(dashboardBtn);
-            
-        } catch (error) {
-            console.error(error);
-            updateStatus('Error: ' + error.message, true);
-        }
-    }
-    
-    // Function to save the reason to backend
-    async function saveReasonToBackend(poolId, reason, txHash = '') {
-        try {
             const response = await fetch('{% url "admin_submit_cancel_request" %}', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-CSRFToken': '{{ csrf_token }}'
-                },
-                body: `pool_id=${poolId}&reason=${encodeURIComponent(reason)}&transaction_hash=${txHash}`
+                body: formData
             });
             
-            if (!response.ok) {
-                console.warn('Failed to save reason to backend:', await response.text());
+            if (response.ok) {
+                updateStatus('Cancellation request submitted successfully!', false, true);
+                
+                // Add dashboard button
+                const footer = document.getElementById('modal-footer');
+                const dashboardBtn = document.createElement('a');
+                dashboardBtn.href = "{% url 'admin_dashboard' %}";
+                dashboardBtn.className = "btn btn-primary";
+                dashboardBtn.innerText = "Go to Dashboard";
+                dashboardBtn.style.marginRight = "10px";
+                footer.prepend(dashboardBtn);
+                
+                // Add pending requests button
+                const pendingBtn = document.createElement('a');
+                pendingBtn.href = "{% url 'admin_pending_cancellations' %}";
+                pendingBtn.className = "btn btn-info";
+                pendingBtn.innerText = "View Pending Requests";
+                pendingBtn.style.marginRight = "10px";
+                footer.prepend(pendingBtn);
+            } else {
+                let errorText = 'Error submitting to server';
+                try {
+                    const errorData = await response.text();
+                    errorText += ': ' + errorData;
+                } catch (e) {}
+                updateStatus(errorText, true);
             }
         } catch (error) {
-            console.warn('Error saving reason to backend:', error);
+            console.error('Error:', error);
+            updateStatus('Error: ' + error.message, true);
         }
     }
 </script>

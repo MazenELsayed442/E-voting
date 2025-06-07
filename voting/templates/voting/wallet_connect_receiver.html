@@ -1,0 +1,114 @@
+{% extends 'voting/base.html' %}
+{% block content %}
+<div class="container text-center py-5">
+    <h2>Blockchain Voting System</h2>
+    <h3>Connect Your Wallet</h3>
+    <div class="spinner-border mt-3" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+    <p class="mt-4" id="status-message">Requesting wallet connection through MetaMask...</p>
+    <div id="result" class="mt-3"></div>
+
+    <div class="mt-4" id="manual-connect" style="display:none;">
+        <button id="connect-button" class="btn btn-primary">
+            Connect Wallet Manually
+        </button>
+        <p class="mt-2 text-muted">If connection doesn't start automatically, click the button above.</p>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Show manual connect button after 3 seconds
+    setTimeout(() => {
+        document.getElementById('manual-connect').style.display = 'block';
+    }, 3000);
+    
+    // Debug logging
+    console.log("Wallet connect receiver page loaded");
+    
+    // Get session ID from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionId = urlParams.get('sessionId') || "{{ session_id }}";
+    
+    console.log("Session ID:", sessionId);
+    
+    if (!sessionId) {
+        document.getElementById('status-message').textContent = 'Error: Missing session ID';
+        document.getElementById('result').innerHTML = '<div class="alert alert-danger">Invalid connection request</div>';
+        return;
+    }
+    
+    // Function to connect MetaMask
+    async function connectMetaMask() {
+        if (typeof window.ethereum === 'undefined') {
+            document.getElementById('status-message').textContent = 'Error: MetaMask not found';
+            document.getElementById('result').innerHTML = '<div class="alert alert-danger">Please install MetaMask to connect your wallet</div>';
+            return;
+        }
+        
+        try {
+            // Request account access
+            document.getElementById('status-message').textContent = 'Requesting wallet access...';
+            console.log("Requesting wallet access from MetaMask");
+            
+            const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+            const walletAddress = accounts[0];
+            console.log("Wallet connected:", walletAddress);
+            
+            document.getElementById('status-message').textContent = 'Wallet connected, sending details to admin dashboard...';
+            
+            // Send wallet address to our server
+            await fetch("{% url 'wallet_connect_qr_receive' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    action: 'receive_wallet',
+                    session_id: sessionId,
+                    wallet_address: walletAddress
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log("Server response:", data);
+                
+                if (data.success) {
+                    document.getElementById('status-message').textContent = 'Success! Wallet connected';
+                    document.getElementById('result').innerHTML = 
+                        `<div class="alert alert-success">
+                            <p>Wallet address: ${walletAddress}</p>
+                            <p>You can close this page and return to the admin dashboard.</p>
+                        </div>`;
+                } else {
+                    document.getElementById('status-message').textContent = 'Error connecting wallet';
+                    document.getElementById('result').innerHTML = 
+                        `<div class="alert alert-warning">
+                            <p>There was a problem: ${data.error || 'Unknown error'}</p>
+                            <p>Please try again.</p>
+                        </div>`;
+                }
+            });
+            
+        } catch (error) {
+            console.error("MetaMask connection error:", error);
+            document.getElementById('status-message').textContent = 'Error connecting to MetaMask';
+            document.getElementById('result').innerHTML = 
+                `<div class="alert alert-danger">
+                    <p>Connection error: ${error.message}</p>
+                    <p>Please try again by clicking the Connect Wallet button.</p>
+                </div>`;
+        }
+    }
+    
+    // Add click handler for manual connect button
+    document.getElementById('connect-button').addEventListener('click', connectMetaMask);
+    
+    // Connect MetaMask automatically after a short delay
+    setTimeout(() => {
+        connectMetaMask();
+    }, 1000);
+});
+</script>
+{% endblock %} 

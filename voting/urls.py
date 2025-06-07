@@ -14,7 +14,8 @@ from .views import (
     admin_proposals, wallet_connect, admin_view_pool, admin_view_proposal,
     admin_submit_cancel_request, admin_submit_replace_request,
     admin_approve_proposal, admin_reject_proposal, admin_cancel_pool_list,
-    admin_approve_replacement_request,
+    admin_approve_replacement_request, wallet_connect_qr, wallet_connect_qr_receive,
+    wallet_connect_receiver,
     
     # New cancellation approval flow
     admin_pending_cancellations, admin_approve_cancellation, admin_reject_cancellation,
@@ -71,6 +72,9 @@ urlpatterns = [
     path('admin-portal/replace-admin/', admin_replace_admin, name='admin_replace_admin'),
     path('admin-portal/proposals/', admin_proposals, name='admin_proposals'),
     path('admin-portal/wallet-connect/', wallet_connect, name='wallet_connect'),
+    path('admin-portal/wallet-connect-qr/', wallet_connect_qr, name='wallet_connect_qr'),
+    path('admin-portal/api/wallet-connect-qr-receive/', wallet_connect_qr_receive, name='wallet_connect_qr_receive'),
+    path('admin-portal/receive-wallet/<str:session_id>/', wallet_connect_receiver, name='wallet_connect_receiver'),
     path('admin-portal/view-pool/<int:pool_id>/', admin_view_pool, name='admin_view_pool'),
     path('admin-portal/view-proposal/<int:proposal_id>/', admin_view_proposal, name='admin_view_proposal'),
     
