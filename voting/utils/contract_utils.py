@@ -3,6 +3,7 @@ import json
 import os
 import logging
 import glob
+from django.conf import settings # Import Django settings
 
 # Get logger
 logger = logging.getLogger(__name__)
@@ -15,9 +16,10 @@ NODE_URL = os.environ.get("WEB3_NODE_URL", "https://polygon-mainnet.infura.io/v3
 VOTING_CONTRACT_ADDRESS = os.environ.get("VOTING_CONTRACT_ADDRESS")
 ADMIN_CONTRACT_ADDRESS = os.environ.get("ADMIN_CONTRACT_ADDRESS")
 
-# ABI paths for different contracts
-VOTING_ABI_PATH = "artifacts/contracts/Voting.sol/Voting.json"
-ADMIN_ABI_PATH = "artifacts/contracts/VotingAdmin.sol/VotingAdmin.json"
+# --- New, simplified ABI paths ---
+# We assume the ABI files are located in 'voting/abi/' relative to the project's BASE_DIR
+VOTING_ABI_PATH = os.path.join(settings.BASE_DIR, 'voting', 'abi', 'Voting.json')
+ADMIN_ABI_PATH = os.path.join(settings.BASE_DIR, 'voting', 'abi', 'VotingAdmin.json')
 
 # Print the contract addresses for debugging
 print(f"Using Voting Contract Address: {VOTING_CONTRACT_ADDRESS}")
@@ -124,27 +126,22 @@ def get_web3():
         return Web3(Web3.HTTPProvider(NODE_URL))
 
 def load_abi(abi_path):
-    """Load ABI from file or use fallback minimal ABI"""
-    # Try multiple potential locations for the ABI file
-    possible_paths = [
-        abi_path,
-        f"blockchain/{abi_path}",
-        os.path.join("blockchain", "artifacts", "contracts", abi_path.split("/")[-2], abi_path.split("/")[-1]),
-        os.path.join("artifacts", "contracts", abi_path.split("/")[-2], abi_path.split("/")[-1])
-    ]
-    
-    for path in possible_paths:
-        try:
-            with open(path, "r") as f:
-                abi = json.load(f)["abi"]
-                print(f"Loaded ABI from: {path}")
-                return abi
-        except (FileNotFoundError, KeyError) as e:
-            continue
-    
-    # If we've tried all paths and still don't have the ABI, use the minimal ABI
-    print(f"WARNING: Could not find ABI file {abi_path} in any expected location. Using minimal ABI.")
-    return get_minimal_abi()
+    """Load ABI from the specified file path."""
+    try:
+        with open(abi_path, "r") as f:
+            # The ABI is the value of the 'abi' key in the JSON file.
+            abi = json.load(f)["abi"]
+            print(f"Successfully loaded ABI from: {abi_path}")
+            return abi
+    except FileNotFoundError:
+        logger.error(f"FATAL: ABI file not found at {abi_path}. The application cannot function without it.")
+        # In a production environment, you might want to raise an exception
+        # to prevent the app from running in a broken state.
+        raise
+    except (KeyError, json.JSONDecodeError) as e:
+        logger.error(f"FATAL: Error reading or parsing ABI file at {abi_path}: {e}")
+        # This also indicates a critical problem.
+        raise
 
 def get_minimal_abi():
     """Return a minimal ABI with common functions"""
