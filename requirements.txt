@@ -1,8 +1,11 @@
 Django~=4.2
 gunicorn
-psycopg2-binary
+psycopg2~=2.9.9
 whitenoise
-python-dotenv
+python-dotenv~=1.0.1
 web3
 dj-database-url
-pyotp
+pyotp==2.9.0
+qrcode[pil]==7.4.2
+requests~=2.32.3
+six~=1.16.0
