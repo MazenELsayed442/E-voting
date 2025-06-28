@@ -130,8 +130,6 @@ ADMIN_CONTRACT_ADDRESS=${votingAdminAddress}
     console.log("Finished adding allowed voters.");
 
 
-    const ADMIN_CONTRACT_ABI = JSON.parse('{{ admin_contract_abi|escapejs }}');
-
   } catch (error) {
     console.error("❌ DEPLOYMENT FAILED:", error);
     process.exitCode = 1;
