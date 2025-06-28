@@ -1,7 +1,7 @@
-Django~=5.0
-gunicorn
-psycopg2-binary
-whitenoise
-python-dotenv
-web3
-dj-database-url 
+dj_database_url==3.0.0
+Django==4.2.20
+Django==4.2.14
+pyotp==2.9.0
+python-dotenv==1.1.1
+qrcode==8.2
+web3==7.8.0
