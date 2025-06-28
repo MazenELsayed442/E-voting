@@ -18,8 +18,8 @@ try:
     tables_to_clean = [
         'voting_candidate',  # Main candidate table
         'voting_poolcancellationrequest',  # Pool cancellation requests table
+        'voting_adminreplacementrequest',  # Admin replacement requests table
     ]
-    
     # Delete data from each table
     for table in tables_to_clean:
         try:

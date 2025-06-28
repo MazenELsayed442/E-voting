@@ -24,6 +24,7 @@ from django.shortcuts import get_object_or_404, redirect, render, get_object_or_
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from datetime import datetime, timedelta
+import socket
 
 # Local application imports
 from .forms import CustomUserCreationForm, LoginForm
@@ -995,13 +996,17 @@ def admin_dashboard(request):
                         # Get the status text based on numeric status
                         pool_status_text = ["Pending", "Active", "Cancelled", "Ended"][status] if status < 4 else "Unknown"
                         
-                        # Check if pool is within its time window
+                        # Current timestamp
                         now = datetime.datetime.now().timestamp()
+                        
+                        # Determine temporal state
                         is_active_time = start_time <= now <= end_time
                         
-                        # Update status text based on time-based activity
+                        # Override status text based on temporal logic
                         if status == 0 and is_active_time:
-                            pool_status_text = "Active"  # Change Pending to Active if we're in the time window
+                            pool_status_text = "Active"  # Pending -> Active when window has started
+                        elif now > end_time:
+                            pool_status_text = "Ended"   # Treat any pool past end_time as Ended for display
                         
                         # Consider time-based activity too
                         if (status == 1) or (status == 0 and is_active_time):
@@ -1183,11 +1188,11 @@ def admin_create_pool(request):
                     messages.error(request, "End time must be after start time")
                     return redirect('admin_create_pool')
                 
-                # Ensure minimum voting period (1 hour)
-                min_duration = datetime.timedelta(hours=1)
-                if end_dt - start_dt < min_duration:
-                    messages.error(request, "Voting period must be at least 1 hour")
-                    return redirect('admin_create_pool')
+                # Optional: enforce a minimum voting period. Commented out to allow shorter pools.
+                # min_duration = datetime.timedelta(hours=1)
+                # if end_dt - start_dt < min_duration:
+                #     messages.error(request, "Voting period must be at least 1 hour")
+                #     return redirect('admin_create_pool')
                 
                 # Convert to timestamps
                 start_timestamp = int(start_dt.timestamp())
@@ -1587,6 +1592,8 @@ def wallet_connect(request):
 def wallet_connect_qr(request):
     """Page to connect blockchain wallet via QR code scanning."""
     from .utils.contract_utils import get_voting_contract_address, load_abi
+    import json
+    import socket
     
     # Get contract address and ABI for the Voting contract
     voting_contract_address = get_voting_contract_address()
@@ -1595,14 +1602,17 @@ def wallet_connect_qr(request):
     voting_contract_abi = load_abi("artifacts/contracts/Voting.sol/Voting.json")
     
     # Use json.dumps to properly format the ABI as a JSON string
-    import json
     voting_contract_abi_json = json.dumps(voting_contract_abi)
+    
+    # Try to detect the server's IP address
+    server_ip = get_server_ip()
     
     context = {
         'active_tab': 'wallet_qr',
         'received_wallet': None,
         'voting_contract_address': voting_contract_address,
-        'voting_contract_abi': voting_contract_abi_json
+        'voting_contract_abi': voting_contract_abi_json,
+        'server_ip': server_ip
     }
     return render(request, "voting/wallet_connect_qr.html", context)
 
@@ -1700,8 +1710,8 @@ def admin_view_pool(request, pool_id):
         id, category, candidates, start_time, end_time, status = pool_details
         
         # Convert timestamps to readable dates
-        start_date = datetime.datetime.fromtimestamp(start_time).strftime('%Y-%m-%d')
-        end_date = datetime.datetime.fromtimestamp(end_time).strftime('%Y-%m-%d')
+        start_date = datetime.datetime.fromtimestamp(start_time).strftime('%Y-%m-%d | %H:%M')
+        end_date = datetime.datetime.fromtimestamp(end_time).strftime('%Y-%m-%d | %H:%M')
         
         # Check if the pool is actually active based on timestamps
         current_time = datetime.datetime.now().timestamp()
@@ -2372,5 +2382,21 @@ def reset_password(request):
             messages.error(request, '❌ User not found.')
             
     return render(request, 'voting/reset_password.html')
+
+def get_server_ip():
+    """Get the server's IP address to use for QR code generation."""
+    try:
+        # This gets the server's IP by creating a temporary socket connection
+        # It won't actually connect to Google, just get the interface IP
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        # Use a public DNS server IP to determine which interface to use
+        s.connect(('8.8.8.8', 80))
+        server_ip = s.getsockname()[0]
+        s.close()
+        return server_ip
+    except Exception as e:
+        print(f"Error detecting server IP: {e}")
+        # Fallback to a sensible default
+        return '127.0.0.1'
 
 

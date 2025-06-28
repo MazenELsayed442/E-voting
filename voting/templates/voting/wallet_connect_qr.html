@@ -38,16 +38,50 @@
 <!-- Include ethers.js for blockchain interaction -->
 <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 
+{{ voting_contract_abi|json_script:"contract-abi" }}
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     try {
         // Generate a unique session ID
         const sessionId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
         
-        // Create the URL to encode in the QR with the IP address instead of localhost
-        const baseUrl = "http://192.168.234.185:8000";
+        // Detect IP address or use the one from the admin settings
+        const getBaseUrl = () => {
+            // For development/testing: Define your network IP address here when testing with real devices
+            // Leave empty to use automatic detection
+            const manualNetworkIP = "";
+            
+            if (manualNetworkIP) {
+                // Use manually specified IP with the correct port
+                const port = window.location.port ? `:${window.location.port}` : '';
+                return `http://${manualNetworkIP}${port}`;
+            }
+            
+            // Try to get the most likely external IP
+            const hostname = window.location.hostname;
+            if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0') {
+                // We're on localhost, but need an IP that's accessible from mobile devices
+                // Use the IP shown in the terminal when starting the server
+                // Typical home network IP range: 192.168.x.x
+                const localNetworkIP = '{{ server_ip }}'; // Injected from Django to match the host running the server
+                const port = window.location.port ? `:${window.location.port}` : '';
+                return `http://${localNetworkIP}${port}`;
+            } else {
+                // We're on a real domain or IP
+                const protocol = window.location.protocol;
+                const port = window.location.port ? `:${window.location.port}` : '';
+                return `${protocol}//${hostname}${port}`;
+            }
+        };
+        
+        // Create the URL to encode in the QR using the appropriate base URL
+        const baseUrl = getBaseUrl();
         const receiverPath = "{% url 'wallet_connect_receiver' session_id='SESSION_ID_PLACEHOLDER' %}".replace('SESSION_ID_PLACEHOLDER', sessionId);
         const receiverUrl = baseUrl + receiverPath;
+        
+        // Display the URL for debugging
+        console.log("QR code URL:", receiverUrl);
         
         // Get the QR code container
         const qrcodeElement = document.getElementById("qrcode");
@@ -58,7 +92,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Contract data for interaction
         const CONTRACT_ADDRESS = "{{ voting_contract_address }}";
-        const CONTRACT_ABI = {{ voting_contract_abi|safe }};
+        const CONTRACT_ABI = JSON.parse(document.getElementById('contract-abi').textContent);
         
         // Store connected wallet address
         let connectedWalletAddress = null;
@@ -146,8 +180,23 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
                 
-                // Request account access if needed
-                await window.ethereum.request({ method: 'eth_requestAccounts' });
+                // 1) Revoke existing permission (ignores if none)
+                await window.ethereum.request({
+                    method: 'wallet_revokePermissions',
+                    params: [{ eth_accounts: {} }]
+                });
+
+                // 2) Ask again – MetaMask shows chooser
+                await window.ethereum.request({
+                    method: 'wallet_requestPermissions',
+                    params: [{ eth_accounts: {} }]
+                });
+
+                // 3) Now fetch the selected account(s)
+                const accounts = await window.ethereum.request({
+                    method: 'eth_accounts'
+                });
+                const walletAddress = accounts[0];
                 
                 const provider = new ethers.providers.Web3Provider(window.ethereum);
                 const signer = provider.getSigner();

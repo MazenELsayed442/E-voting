@@ -19,15 +19,7 @@
             
             <div class="mb-3">
                 <label for="start_datetime" class="form-label">Start Date & Time</label>
-                <div class="input-group">
-                    <input type="datetime-local" class="form-control" id="start_datetime" name="start_datetime" required>
-                    <button type="button" class="btn btn-outline-primary btn-sm" id="set-now-btn" title="Set to current time">
-                        <i class="bi bi-clock"></i> Now
-                    </button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="increment-minute-btn" title="Add 1 minute">
-                        <i class="bi bi-plus"></i> +1min
-                    </button>
-                </div>
+                <input type="text" class="form-control" id="start_datetime" name="start_datetime" placeholder="Select start date & time" required>
                 <div class="invalid-feedback">
                     Please select a start date and time.
                 </div>
@@ -35,11 +27,11 @@
             
             <div class="mb-3">
                 <label for="end_datetime" class="form-label">End Date & Time</label>
-                <input type="datetime-local" class="form-control" id="end_datetime" name="end_datetime" required>
+                <input type="text" class="form-control" id="end_datetime" name="end_datetime" placeholder="Select end date & time" required>
                 <div class="invalid-feedback">
                     Please select an end date and time.
                 </div>
-                <small class="text-muted">The voting period must be at least 1 hour.</small>
+                <small class="text-muted">Choose any duration you prefer.</small>
             </div>
         </div>
         
@@ -115,6 +107,10 @@
     </div>
 </form>
 
+<!-- Flatpickr CSS & JS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
 <script>
     // Add form validation
     (function() {
@@ -165,58 +161,34 @@
         });
     });
     
-    // Initialize datetime inputs with default values
+    // Initialize Flatpickr date-time pickers
     document.addEventListener('DOMContentLoaded', function() {
-        // Set default start time (current time + 2 minutes)
-        const startDate = new Date();
-        startDate.setMinutes(startDate.getMinutes() + 2);
-        startDate.setSeconds(0);
-        startDate.setMilliseconds(0);
-        
-        // Set default end time (current time + 5 days)
-        const endDate = new Date();
-        endDate.setDate(endDate.getDate() + 5);
-        endDate.setHours(23);
-        endDate.setMinutes(59);
-        endDate.setSeconds(59);
-        endDate.setMilliseconds(0);
-        
-        // Format dates for datetime-local input
-        const formatDateForInput = (date) => {
-            // Use local time instead of UTC to avoid timezone offset issues
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            const hours = String(date.getHours()).padStart(2, '0');
-            const minutes = String(date.getMinutes()).padStart(2, '0');
-            return `${year}-${month}-${day}T${hours}:${minutes}`;
+        const commonOptions = {
+            enableTime: true,
+            dateFormat: "Y-m-d H:i",
+            time_24hr: true,
         };
-        
-        // Set values to inputs
-        document.getElementById('start_datetime').value = formatDateForInput(startDate);
-        document.getElementById('end_datetime').value = formatDateForInput(endDate);
-        
-        // Set Now button functionality
-        document.getElementById('set-now-btn').addEventListener('click', function() {
-            const now = new Date();
-            now.setSeconds(0);
-            now.setMilliseconds(0);
-            document.getElementById('start_datetime').value = formatDateForInput(now);
-        });
-        
-        // Increment minute button functionality
-        document.getElementById('increment-minute-btn').addEventListener('click', function() {
-            const startInput = document.getElementById('start_datetime');
-            let currentTime = new Date(startInput.value);
-            
-            // If no time is set, use current time
-            if (!startInput.value) {
-                currentTime = new Date();
+
+        // Default start: now + 2 minutes
+        const startDefault = new Date(Date.now() + 2 * 60 * 1000);
+        // Default end: start + 7 days
+        const endDefault = new Date(startDefault.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+        flatpickr("#start_datetime", {
+            ...commonOptions,
+            defaultDate: startDefault,
+            onChange: function(selectedDates) {
+                if (selectedDates.length) {
+                    // ensure end >= start
+                    endPicker.set('minDate', selectedDates[0]);
+                }
             }
-            
-            // Add one minute
-            currentTime.setMinutes(currentTime.getMinutes() + 1);
-            startInput.value = formatDateForInput(currentTime);
+        });
+
+        const endPicker = flatpickr("#end_datetime", {
+            ...commonOptions,
+            defaultDate: endDefault,
+            minDate: startDefault
         });
     });
 </script>

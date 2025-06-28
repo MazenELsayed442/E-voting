@@ -1,0 +1,36 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+venv/
+.env/
+.venv/
+ENV/
+
+# Django / project-specific
+*.log
+db.sqlite3
+*.sqlite3
+media/
+staticfiles/
+
+# Environment variables
+.env
+*.env
+
+# Node & Hardhat artifacts
+node_modules/
+blockchain/artifacts/
+blockchain/cache/
+blockchain/typechain/
+blockchain/typechain-types/
+blockchain/coverage/
+blockchain/coverage.json
+blockchain/ignition/deployments/chain-31337/
+
+# OS / Editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/ 
