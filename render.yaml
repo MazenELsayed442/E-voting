@@ -1,0 +1,38 @@
+# This file configures the services for your Django project on Render.
+# For more details, see https://render.com/docs/yaml-spec
+
+databases:
+  - name: evoting_db
+    databaseName: evoting
+    user: evoting_user
+    plan: free # You can upgrade this in the Render dashboard
+
+services:
+  - type: web
+    name: evoting-django
+    runtime: python
+    buildCommand: |
+      pip install -r requirements.txt
+      python manage.py collectstatic --no-input
+      python manage.py migrate
+    startCommand: "gunicorn eVoting.wsgi:application"
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: evoting_db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true # Render will generate a random secret key
+      - key: WEB_CONCURRENCY
+        value: 4
+      - key: PYTHON_VERSION
+        value: 3.11.4 # Specify your desired Python version
+      - key: DEBUG
+        value: False
+      - key: INFURA_PROJECT_ID
+        value: "YOUR_INFURA_PROJECT_ID_HERE" # IMPORTANT: Paste your Infura ID here
+      # The contract addresses will be updated after you deploy them to Polygon
+      - key: VOTING_CONTRACT_ADDRESS
+        value: "YOUR_VOTING_CONTRACT_ADDRESS"
+      - key: ADMIN_CONTRACT_ADDRESS
+        value: "YOUR_ADMIN_CONTRACT_ADDRESS" 

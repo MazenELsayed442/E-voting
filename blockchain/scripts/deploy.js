@@ -11,8 +11,8 @@ async function main() {
     // Replace these with the actual addresses you want to be admins
     // For testing, you might use addresses from `npx hardhat node` or your own test wallets.
     const admin1 = deployer.address; // Often the deployer is the first admin
-    const admin2 = "0xdD2FD4581271e230360230F9337D5c0430Bf44C0"; // REPLACE WITH ACTUAL ADDRESS 2
-    const admin3 = "0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199"; // REPLACE WITH ACTUAL ADDRESS 3
+    const admin2 = "0x9D2975BEfF48Ca0041DC08f26b4c63F56258Cde4"; // REPLACE WITH ACTUAL ADDRESS 2
+    const admin3 = "0x945aa747317e710f4Fa216c855a74e9453Bf13da"; // REPLACE WITH ACTUAL ADDRESS 3
 
     if (admin2 === "0x..." || admin3 === "0x...") {
         console.error("❌ ERROR: Please replace placeholder admin addresses in the deploy script!");

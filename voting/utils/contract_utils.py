@@ -9,13 +9,11 @@ logger = logging.getLogger(__name__)
 
 # Configuration - These should be configurable
 # You can override these with environment variables if needed
-NODE_URL = os.environ.get("WEB3_NODE_URL", "http://127.0.0.1:8545")  # Default Hardhat port
+NODE_URL = os.environ.get("WEB3_NODE_URL", "https://polygon-mainnet.infura.io/v3/982333c3771f4b48adb4f518098a444b")  # Default to Polygon Mainnet
 
-# Contract addresses - separate admin and voting contracts
-# Correct default for voting contract
-VOTING_CONTRACT_ADDRESS = os.environ.get("VOTING_CONTRACT_ADDRESS", "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512")
-# Default for admin contract (change this to your actual admin contract address)
-ADMIN_CONTRACT_ADDRESS = os.environ.get("ADMIN_CONTRACT_ADDRESS", "0x5FbDB2315678afecb367f032d93F642f64180aa3")
+# Contract addresses - loaded from environment variables, with file-based fallback for local dev
+VOTING_CONTRACT_ADDRESS = os.environ.get("VOTING_CONTRACT_ADDRESS")
+ADMIN_CONTRACT_ADDRESS = os.environ.get("ADMIN_CONTRACT_ADDRESS")
 
 # ABI paths for different contracts
 VOTING_ABI_PATH = "artifacts/contracts/Voting.sol/Voting.json"
@@ -31,61 +29,78 @@ CONTRACT_ADDRESS = VOTING_CONTRACT_ADDRESS
 def update_contract_addresses():
     """Try to find and update the latest contract addresses from deployment artifacts"""
     global VOTING_CONTRACT_ADDRESS, ADMIN_CONTRACT_ADDRESS
-    
-    # Look for deployment log files
+
+    latest_json_path = os.path.join('blockchain', 'deployment_logs', 'latest.json')
+
+    if os.path.exists(latest_json_path):
+        try:
+            with open(latest_json_path, 'r') as f:
+                deployment_info = json.load(f)
+                VOTING_CONTRACT_ADDRESS = deployment_info['contracts']['Voting']
+                ADMIN_CONTRACT_ADDRESS = deployment_info['contracts']['VotingAdmin']
+                print(f"Updated contract addresses from {latest_json_path}")
+                print(f"  Voting Contract: {VOTING_CONTRACT_ADDRESS}")
+                print(f"  Admin Contract: {ADMIN_CONTRACT_ADDRESS}")
+                return VOTING_CONTRACT_ADDRESS, ADMIN_CONTRACT_ADDRESS
+        except Exception as e:
+            print(f"Error reading {latest_json_path}: {e}")
+
+    # Fallback to searching all deployment logs if latest.json is not available
     deployment_logs = []
-    # Check multiple potential locations where logs might be stored
     possible_paths = [
         'blockchain/deployment_logs/*.json',
         'deployment_logs/*.json',
-        'blockchain/*.log',
-        'logs/*.json',
-        'blockchain/logs/*.json'
     ]
-    
-    # Check if there's a deployment flag file from the batch script
-    if os.path.exists("deployment_complete.flag"):
-        print("Found deployment flag file, contracts should be deployed")
     
     for path_pattern in possible_paths:
         logs = glob.glob(path_pattern)
         if logs:
             deployment_logs.extend(logs)
-    
-    if not deployment_logs:
-        # If no deployment logs found, try to read from hardhat cache
-        cache_paths = [
-            'blockchain/artifacts/build-info/*.json',
-            'artifacts/build-info/*.json'
-        ]
-        for path_pattern in cache_paths:
-            cache_files = glob.glob(path_pattern)
-            if cache_files:
-                # Sort by modification time to get the latest one
-                latest_cache = sorted(cache_files, key=os.path.getmtime, reverse=True)[0]
-                try:
-                    with open(latest_cache, 'r') as f:
-                        cache_data = json.load(f)
-                        if 'deployedAddresses' in cache_data:
-                            addresses = cache_data['deployedAddresses']
-                            for contract_name, address in addresses.items():
-                                if 'Voting.sol:Voting' in contract_name:
-                                    VOTING_CONTRACT_ADDRESS = address
-                                    print(f"Updated Voting contract address from cache: {address}")
-                                elif 'VotingAdmin.sol:VotingAdmin' in contract_name:
-                                    ADMIN_CONTRACT_ADDRESS = address
-                                    print(f"Updated Admin contract address from cache: {address}")
-                except Exception as e:
-                    print(f"Error reading cache file: {e}")
-    
+
+    if deployment_logs:
+        # Sort by modification time to get the latest one
+        latest_log = sorted(deployment_logs, key=os.path.getmtime, reverse=True)[0]
+        if latest_log.endswith('latest.json'): # dont re-read if we checked it
+            if len(deployment_logs) > 1:
+                latest_log = sorted([l for l in deployment_logs if not l.endswith('latest.json')], key=os.path.getmtime, reverse=True)[0]
+            else:
+                latest_log = None
+
+        if latest_log:
+            try:
+                with open(latest_log, 'r') as f:
+                    deployment_info = json.load(f)
+                    VOTING_CONTRACT_ADDRESS = deployment_info['contracts']['Voting']
+                    ADMIN_CONTRACT_ADDRESS = deployment_info['contracts']['VotingAdmin']
+                    print(f"Updated contract addresses from latest log: {latest_log}")
+                    print(f"  Voting Contract: {VOTING_CONTRACT_ADDRESS}")
+                    print(f"  Admin Contract: {ADMIN_CONTRACT_ADDRESS}")
+                    return VOTING_CONTRACT_ADDRESS, ADMIN_CONTRACT_ADDRESS
+            except Exception as e:
+                print(f"Error reading deployment log {latest_log}: {e}")
+
+    # The rest of the function (cache fallback) can remain as a last resort
+    # ... but for polygon deployment, we rely on the json files.
+
     return VOTING_CONTRACT_ADDRESS, ADMIN_CONTRACT_ADDRESS
 
 def get_web3():
-    """Get Web3 connection to Hardhat local node"""
+    """Get Web3 connection to the Ethereum node"""
+    global VOTING_CONTRACT_ADDRESS, ADMIN_CONTRACT_ADDRESS
+
+    # --- Environment-aware Address Loading ---
+    # On Render (or any platform that sets these env vars), we trust the env vars exclusively.
+    # For local development, if the env vars aren't set, we fall back to reading the deployment file.
+    is_production_env = VOTING_CONTRACT_ADDRESS and ADMIN_CONTRACT_ADDRESS
+
+    if not is_production_env:
+        print("Production contract addresses not found in environment, trying file-based lookup for local development...")
+        # update_contract_addresses will read from latest.json and update the global vars
+        updated_voting_addr, updated_admin_addr = update_contract_addresses()
+        VOTING_CONTRACT_ADDRESS = updated_voting_addr
+        ADMIN_CONTRACT_ADDRESS = updated_admin_addr
+
     try:
-        # Update contract addresses before connecting
-        update_contract_addresses()
-        
         # Use the configured node URL
         print(f"Connecting to Ethereum node at: {NODE_URL}")
         web3 = Web3(Web3.HTTPProvider(NODE_URL))

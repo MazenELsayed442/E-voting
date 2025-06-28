@@ -1,0 +1,9 @@
+{
+  "timestamp": "2025-06-28T20:27:51.414Z",
+  "network": "polygon",
+  "chainId": 137,
+  "contracts": {
+    "VotingAdmin": "0xE002E8A5Dc8e386B6eE5382096FC49C2db9D90D5",
+    "Voting": "0xcA84ba5c8F9f93E1cf336587B9688Ac4Be3b608A"
+  }
+}

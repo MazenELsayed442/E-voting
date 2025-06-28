@@ -17,7 +17,8 @@ staticfiles/
 
 # Environment variables
 .env
-*.env
+.env.local
+.env.*.local
 
 # Node & Hardhat artifacts
 node_modules/
