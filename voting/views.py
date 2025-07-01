@@ -1326,7 +1326,7 @@ def admin_cancel_pool_list(request):
     
     # Get contract address and ABI for MetaMask integration
     admin_contract_address = get_admin_contract_address()
-    admin_contract_abi = load_abi("artifacts/contracts/VotingAdmin.sol/VotingAdmin.json")
+    admin_contract_abi = load_abi(ADMIN_ABI_PATH)
     
     context = {
         'active_tab': 'cancel_pool',
