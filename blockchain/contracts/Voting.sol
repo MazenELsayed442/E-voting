@@ -330,17 +330,6 @@ contract Voting {
 
 
     /**
-     * @notice Checks if a specific address has already voted in a given pool.
-     * @param _poolId The ID of the pool.
-     * @param _voter The address to check.
-     * @return True if the address has voted in the pool, false otherwise.
-     */
-    function hasVotedInPool(uint256 _poolId, address _voter) public view returns (bool) {
-        // No need to check pool existence, will return false for non-existent pool implicitly
-        return votingPools[_poolId].hasVoted[_voter];
-    }
-
-    /**
      * @notice Returns the total number of pools created.
      * @return The next pool ID, which represents the count.
      */

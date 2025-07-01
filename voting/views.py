@@ -219,11 +219,11 @@ def register(request):
             request.session["user_id"] = user.id
             request.session["email"] = user.email
 
-            messages.success(request, "✅ Registration successful! Scan the QR code with Google Authenticator and verify via OTP sent to your email.")
+            messages.success(request, "Registration successful! Scan the QR code with Google Authenticator and verify via OTP sent to your email.")
             return redirect("send_otp")  
 
         else:
-            messages.error(request, "❌ Registration failed. Please check the form.")
+            messages.error(request, "Registration failed. Please check the form.")
 
     else:
         form = CustomUserCreationForm()
@@ -235,7 +235,7 @@ def verified_required(view_func):
     @login_required(login_url="/login/")
     def _wrapped_view(request, *args, **kwargs):
         if not request.user.is_verified:
-            messages.error(request, "❌ You need to verify your account before accessing this page.")
+            messages.error(request, "You need to verify your account before accessing this page.")
             return redirect("home")  
         return view_func(request, *args, **kwargs)
     return _wrapped_view
@@ -270,7 +270,7 @@ def login_view(request):
 def verify_totp(request, candidate_id):
     user_id = request.session.get("pending_user_id")
     if not user_id:
-        messages.error(request, "❌ Session expired. Please log in again.")
+        messages.error(request, "Session expired. Please log in again.")
         return redirect("login")
 
     user = get_object_or_404(CustomUser, id=user_id)
@@ -294,7 +294,7 @@ def verify_totp(request, candidate_id):
             return redirect("home")
         else:
             # optional: allow retry by not deleting on first failure
-            messages.error(request, "❌ Invalid OTP. Please try again.")
+            messages.error(request, "Invalid OTP. Please try again.")
             return redirect("verify_totp", candidate_id=candidate_id)
 
     return render(request, "voting/verify_totp.html", {"candidate": candidate})
@@ -304,7 +304,7 @@ def verify_totp(request, candidate_id):
 @login_required(login_url="/login/")
 def logout_view(request):
     logout(request)
-    messages.success(request, "✅ Logout successful!")
+    messages.success(request, "Logout successful!")
     return redirect("home")
 
 def send_otp(request):
@@ -313,7 +313,7 @@ def send_otp(request):
     
     # If email is not in session, redirect to login
     if not email:
-        messages.error(request, "❌ Email not available, please log in.")
+        messages.error(request, "Email not available, please log in.")
         return redirect("login")
 
     # Generate a new OTP code
@@ -331,7 +331,7 @@ def send_otp(request):
         fail_silently=False,
     )
 
-    messages.success(request, "✅ OTP has been sent to your email.")
+    messages.success(request, "OTP has been sent to your email.")
     return redirect("verify_otp")
 
 
@@ -339,7 +339,7 @@ def verify_otp(request):
     email = request.session.get("email")
     user_id = request.session.get("user_id")
     if not email or not user_id:
-        messages.error(request, "❌ Session expired. Please log in again.")
+        messages.error(request, "Session expired. Please log in again.")
         return redirect("login")
 
     user = get_object_or_404(CustomUser, id=user_id)
@@ -353,14 +353,14 @@ def verify_otp(request):
         if entered_gmail_otp != stored_gmail_otp:
             # clean up and force resend
             del request.session["otp_code"]
-            messages.error(request, "❌ Incorrect email OTP. A new code has been sent.")
+            messages.error(request, "Incorrect email OTP. A new code has been sent.")
             return redirect("resend_otp")
 
         # 2) Verify TOTP with drift window
         totp = pyotp.TOTP(user.otp_secret)
         logger.debug(f"TOTP now={totp.now()} server_time={int(time.time())}")
         if not totp.verify(entered_authenticator_otp, valid_window=1):
-            messages.error(request, "❌ Incorrect Google Authenticator code. Please try again.")
+            messages.error(request, "Incorrect Google Authenticator code. Please try again.")
             return redirect("verify_otp")
 
         # 3) Success!
@@ -375,7 +375,7 @@ def verify_otp(request):
             if key in request.session:
                 del request.session[key]
 
-        messages.success(request, "✅ Verification successful! You are now logged in.")
+        messages.success(request, "Verification successful! You are now logged in.")
         return redirect("home")
 
     return render(request, "voting/verify_otp.html", {"email": email})
@@ -385,7 +385,7 @@ def resend_otp(request):
     email = request.session.get("email")
 
     if not email:
-        messages.error(request, "❌ Email not found.")
+        messages.error(request, "Email not found.")
         return redirect("send_otp")
 
     otp_code = str(random.randint(100000, 999999))
@@ -399,7 +399,7 @@ def resend_otp(request):
         fail_silently=False,
     )
 
-    messages.success(request, "✅ A new OTP has been sent to your email.")
+    messages.success(request, "A new OTP has been sent to your email.")
     return redirect("verify_otp")
 
 # Change email
