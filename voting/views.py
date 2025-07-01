@@ -71,7 +71,7 @@ def home(request):
                 messages.warning(request, f"Blockchain network was restarted. Previous voting data has been cleared.")
             
             # Always sync database with blockchain to ensure consistency
-            sync_database_with_blockchain()
+            # sync_database_with_blockchain() - REMOVED: This is too slow for a web request.
             
             # Get contract and pool count
             voting_contract = get_voting_contract()
@@ -462,7 +462,7 @@ def vote_home(request):
                 messages.warning(request, f"Blockchain network was restarted. Previous voting data has been cleared.")
             
             # Always sync database with blockchain to ensure consistency
-            sync_database_with_blockchain()
+            # sync_database_with_blockchain() - REMOVED: This is too slow for a web request.
             
             # Get contract and pool count
             voting_contract = get_voting_contract()
@@ -580,7 +580,7 @@ def vote_category(request, category):
     # If no categories from blockchain, get from database
     if not allowed_categories:
         # Try to sync the database with blockchain first
-        sync_database_with_blockchain()
+        # sync_database_with_blockchain() - REMOVED: This is too slow for a web request.
         
         db_categories = Candidate.objects.values_list('category', flat=True).distinct()
         allowed_categories = list(db_categories)
@@ -971,6 +971,12 @@ def admin_dashboard(request):
             node_status = "Connected"
             blockchain_connected = True
             chain_id = web3.eth.chain_id
+            
+            # --- START OPTIMIZATION ---
+            # The sync_database_with_blockchain() call was removed from here.
+            # It is too slow and resource-intensive to run on every dashboard load.
+            # This should be a periodic background task or a manual admin action.
+            # --- END OPTIMIZATION ---
             
             try:
                 # Get the block number to display in the status
