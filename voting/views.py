@@ -626,12 +626,8 @@ def vote_category(request, category):
 def get_candidate_details(request, candidate_id):
     candidate = get_object_or_404(Candidate, id=candidate_id)
 
-    try:
-        with open("blockchain/artifacts/contracts/Voting.sol/Voting.json", "r") as f:
-            contract_data = json.load(f)
-            contract_abi = contract_data.get("abi", [])
-    except FileNotFoundError:
-        contract_abi = []
+    # Correctly load the ABI using the utility function
+    contract_abi = load_abi(VOTING_ABI_PATH)
 
     contract_address = getattr(settings, "VOTING_CONTRACT_ADDRESS", None)
     if not contract_address:
