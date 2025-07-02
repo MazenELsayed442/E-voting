@@ -81,18 +81,20 @@
 
 <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 <script>
-    // Set up our variables from the Django template
-    const startTimestamp = {{ start_timestamp }};
-    const endTimestamp = {{ end_timestamp }};
+    // --- Dynamically load contract details from Django ---
+    const contractAddress = "{{ voting_contract_address }}";
+    // The ABI is now loaded from a file and passed into the template context.
+    const contractABI = JSON.parse('{{ voting_contract_abi|escapejs }}');
+
+    // --- Get data from Django context ---
     const adminAddress = "{{ admin_address }}";
     const category = "{{ category }}";
-    const contractAddress = "{{ voting_contract_address }}";
-    
-    // This is a JSON string from Django, so we need to parse it into a JavaScript object.
-    // The |escapejs filter is crucial to handle any special characters correctly.
+    const startTimestamp = {{ start_timestamp }};
+    const endTimestamp = {{ end_timestamp }};
+    // These are JSON strings from Django, so we need to parse them.
+    const candidates = JSON.parse('{{ candidates|escapejs }}');
     const candidatesWithDescriptions = JSON.parse('{{ candidates_with_descriptions|escapejs }}');
-    const candidates = candidatesWithDescriptions.map(c => c[0]); // Extract just the names for the contract call
-    
+
     document.addEventListener('DOMContentLoaded', function() {
         // Convert timestamps to readable local dates for display
         const startDate = new Date(startTimestamp * 1000);
@@ -141,30 +143,6 @@
                 updateStatus('Error: Connected wallet address does not match admin wallet. Please connect with the correct account.', true);
                 return;
             }
-            
-            const contractABI = [
-                {
-                    "anonymous": false,
-                    "inputs": [
-                        {"indexed": true, "internalType": "uint256", "name": "poolId", "type": "uint256"},
-                        {"indexed": false, "internalType": "string", "name": "category", "type": "string"}
-                    ],
-                    "name": "PoolCreated",
-                    "type": "event"
-                },
-                {
-                    "inputs": [
-                        {"internalType": "string", "name": "_category", "type": "string"},
-                        {"internalType": "string[]", "name": "_candidates", "type": "string[]"},
-                        {"internalType": "uint256", "name": "_startTime", "type": "uint256"},
-                        {"internalType": "uint256", "name": "_endTime", "type": "uint256"}
-                    ],
-                    "name": "createPool",
-                    "outputs": [],
-                    "stateMutability": "nonpayable",
-                    "type": "function"
-                }
-            ];
             
             const contract = new ethers.Contract(contractAddress, contractABI, signer);
             

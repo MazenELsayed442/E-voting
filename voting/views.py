@@ -1068,6 +1068,9 @@ def admin_create_pool(request):
             web3 = get_web3()
             admin_address = web3.to_checksum_address(request.user.wallet_address) if web3.is_connected() else None
             
+            # Load the full contract ABI to pass to the template
+            voting_contract_abi = load_abi(VOTING_ABI_PATH)
+            
             candidates_with_descriptions = list(zip(candidate_names, candidate_descriptions))
 
             context = {
@@ -1075,11 +1078,12 @@ def admin_create_pool(request):
                 'category': category_name,
                 'description': description,
                 'candidates_with_descriptions': json.dumps(candidates_with_descriptions), 
-                'candidates': candidate_names,
+                'candidates': json.dumps(candidate_names),
                 'start_timestamp': start_timestamp,
                 'end_timestamp': end_timestamp,
                 'admin_address': admin_address,
                 'voting_contract_address': get_voting_contract_address(),
+                'voting_contract_abi': json.dumps(voting_contract_abi),
                 'show_confirmation': True
             }
             return render(request, "voting/admin_create_pool_confirm.html", context)
