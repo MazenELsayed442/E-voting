@@ -199,12 +199,12 @@
             const signer   = provider.getSigner();
             const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
             const accounts = await provider.listAccounts();
-            const already  = await contract.hasVotedInPool(POOL_ID, accounts[0]);
-
-            if (already) {
-                alert("You have already voted in this category!");
-                return updateVoteButtonStatus();
-            }
+            
+            // const already  = await contract.hasVotedInPool(POOL_ID, accounts[0]); // Temporarily disabled for testing
+            // if (already) {
+            //     alert("You have already voted in this category!");
+            //     return updateVoteButtonStatus();
+            // }
 
             const candidateName = "{{ candidate.name }}";
             console.log("Voting for candidate:", candidateName);
