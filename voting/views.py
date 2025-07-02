@@ -2050,4 +2050,80 @@ def get_server_ip():
         # Fallback to a sensible default
         return '127.0.0.1'
 
+@non_admin_required
+def vote_blockchain_candidate(request, pool_id, candidate_name):
+    """Vote for a candidate that exists only on the blockchain."""
+    
+    voting_contract = get_voting_contract()
+    
+    try:
+        web3 = get_web3()
+        if not web3.is_connected():
+            messages.error(request, "Cannot connect to the blockchain.")
+            return redirect("vote_home")
+        
+        # Get pool details to verify the candidate exists and pool is active
+        _id, category_name, candidate_names, _start, _end, status = voting_contract.functions.getPoolDetails(pool_id).call()
+        
+        # Check if candidate exists in this pool
+        if candidate_name not in candidate_names:
+            messages.error(request, f"Candidate '{candidate_name}' not found in this voting pool.")
+            return redirect("vote_category", pool_id=pool_id)
+        
+        # Check if pool is active
+        now = datetime.now().timestamp()
+        if not (status == 1 or (status == 0 and _start <= now <= _end)):
+            messages.warning(request, "This voting pool is not currently active.")
+            return redirect('vote_home')
+        
+        # Check if user has already voted
+        if request.user.wallet_address:
+            has_voted = voting_contract.functions.hasVotedInPool(pool_id, request.user.wallet_address).call()
+            if has_voted:
+                messages.warning(request, f"You have already voted in the '{category_name}' election.")
+                return redirect('vote_home')
+        
+        # Create a blockchain candidate object for display
+        class BlockchainCandidate:
+            def __init__(self, name, pool_id, category_name):
+                self.name = name
+                self.id = None
+                self.image = None
+                self.description = 'Blockchain candidate - additional details not available in database.'
+                self.party = ''
+                self.pool_id = pool_id
+                self.category = category_name  # Add category name for template compatibility
+                
+                # Get current vote count
+                try:
+                    self.blockchain_votes = voting_contract.functions.getVotes(pool_id, name).call()
+                except:
+                    self.blockchain_votes = 0
+        
+        candidate = BlockchainCandidate(candidate_name, pool_id, category_name)
+        
+        # Load contract ABI for frontend voting
+        contract_abi = load_abi(VOTING_ABI_PATH)
+        contract_address = getattr(settings, "VOTING_CONTRACT_ADDRESS", None)
+        
+        if not contract_address:
+            messages.error(request, "Voting contract address is not configured.")
+            return redirect("vote_category", pool_id=pool_id)
+        
+        context = {
+            "candidate": candidate,
+            "contract_abi": json.dumps(contract_abi),
+            "contract_address": contract_address,
+            "pool_id": pool_id,
+            "category_name": category_name,
+            "is_blockchain_candidate": True
+        }
+        
+        return render(request, "voting/candidate_details.html", context)
+        
+    except Exception as e:
+        logger.error(f"Error in vote_blockchain_candidate for {candidate_name} in pool {pool_id}: {e}")
+        messages.error(request, "There was an error retrieving candidate information from the blockchain.")
+        return redirect("vote_category", pool_id=pool_id)
+
 

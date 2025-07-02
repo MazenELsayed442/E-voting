@@ -28,7 +28,10 @@ from .views import (
     contract_info,
     
     # New API endpoint for saving pool metadata
-    api_save_pool_metadata
+    api_save_pool_metadata,
+    
+    # New view for blockchain-only candidates
+    vote_blockchain_candidate
 )
 
 urlpatterns = [
@@ -54,6 +57,7 @@ urlpatterns = [
     # vote
     path("vote/pool/<int:pool_id>/", vote_category, name="vote_category"),
     path("candidate/<int:candidate_id>/", get_candidate_details, name="get_candidate_details"),
+    path("vote/pool/<int:pool_id>/<str:candidate_name>/", vote_blockchain_candidate, name="vote_blockchain_candidate"),
     path("verify_totp/<int:candidate_id>/", verify_totp, name="verify_totp"),
     path("vote/<int:candidate_id>/", vote_candidate, name="vote_candidate"),
     path("login/otp/", login_otp, name="login_otp"),

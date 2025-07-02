@@ -80,9 +80,11 @@
                 <div class="candidate-item">
                     <h3 class="candidate-name">{{ candidate.name }}</h3>
                     {% if candidate.id %}
-                        <a href="{% url 'get_candidate_details' candidate.id %}" class="vote-btn">Select</a>
+                        {# This is a candidate from the database #}
+                        <a href="{% url 'get_candidate_details' candidate.id %}" class="vote-btn">Vote</a>
                     {% else %}
-                        <p class="text-muted small">{{ candidate.description }}</p>
+                        {# This is a blockchain-only candidate #}
+                        <a href="{% url 'vote_blockchain_candidate' pool_id=pool_id candidate_name=candidate.name %}" class="vote-btn">Vote</a>
                     {% endif %}
                 </div>
             {% endfor %}
