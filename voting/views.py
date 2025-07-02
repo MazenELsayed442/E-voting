@@ -2125,5 +2125,4 @@ def vote_blockchain_candidate(request, pool_id, candidate_name):
         logger.error(f"Error in vote_blockchain_candidate for {candidate_name} in pool {pool_id}: {e}")
         messages.error(request, "There was an error retrieving candidate information from the blockchain.")
         return redirect("vote_category", pool_id=pool_id)
-s th
 
