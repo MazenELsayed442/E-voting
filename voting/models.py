@@ -23,8 +23,6 @@ class CustomUserManager(BaseUserManager):
         extra_fields.setdefault("is_superuser", True)
         return self.create_user(email, username, password, **extra_fields)
 
-# models.py (With user_type field added)
-
 
 
 # Make sure Candidate model is defined above or imported if needed
@@ -161,18 +159,12 @@ class CustomUser(AbstractUser):
 
 # Candidate Model
 class Candidate(models.Model):
-    CATEGORY_CHOICES = [
-        ("President", "President"),
-        ("Vice President", "Vice President"),
-        ("Secretary", "Secretary"),
-    ]
-    
     name = models.CharField(max_length=100)
     party = models.CharField(max_length=100, blank=True, null=True)
-    votes = models.IntegerField(default=0)  # إضافة حقل الأصوات
-    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default="President")
-    image = models.ImageField(upload_to="candidates/", blank=True, null=True)  # إضافة صورة للمرشح
-    description = models.TextField(blank=True, null=True)  # إضافة وصف للمرشح
+    votes = models.IntegerField(default=0)
+    category = models.ForeignKey('Category', on_delete=models.CASCADE, related_name='candidates')
+    image = models.ImageField(upload_to="candidates/", blank=True, null=True)
+    description = models.TextField(blank=True, null=True)
 
     def __str__(self):
         return f"{self.name} ({self.party})" if self.party else self.name
@@ -195,13 +187,15 @@ class Voter(models.Model):
 
 # Category Model
 class Category(models.Model):
-    name = models.CharField(max_length=255, unique=True)  
+    name = models.CharField(max_length=255)
+    pool_id = models.PositiveIntegerField(null=True, blank=True, help_text="The ID of the pool this category belongs to on the blockchain.")
 
     def __str__(self):
         return self.name
 
     class Meta:
         verbose_name_plural = "Categories"
+        unique_together = ('name', 'pool_id')
 
 # Pool Cancellation Request Model
 class PoolCancellationRequest(models.Model):

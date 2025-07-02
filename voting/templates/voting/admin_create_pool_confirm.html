@@ -81,124 +81,139 @@
 
 <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 <script>
-    // Set up our variables
+    // Set up our variables from the Django template
     const startTimestamp = {{ start_timestamp }};
     const endTimestamp = {{ end_timestamp }};
     const adminAddress = "{{ admin_address }}";
     const category = "{{ category }}";
     const contractAddress = "{{ voting_contract_address }}";
     
-    // Create an array for candidates
-    const candidates = [];
-    {% for candidate in candidates %}
-    candidates.push("{{ candidate }}");
-    {% endfor %}
+    // This is a JSON string from Django, so we need to parse it into a JavaScript object.
+    // The |escapejs filter is crucial to handle any special characters correctly.
+    const candidatesWithDescriptions = JSON.parse('{{ candidates_with_descriptions|escapejs }}');
+    const candidates = candidatesWithDescriptions.map(c => c[0]); // Extract just the names for the contract call
     
     document.addEventListener('DOMContentLoaded', function() {
-        // Convert timestamps to readable dates
+        // Convert timestamps to readable local dates for display
         const startDate = new Date(startTimestamp * 1000);
         const endDate = new Date(endTimestamp * 1000);
         
-        // Display the voting period in clear format
         const votingPeriodInfo = document.getElementById('voting-period-info');
         votingPeriodInfo.innerHTML = `${startDate.toLocaleString()} to ${endDate.toLocaleString()}`;
         
-        // Confirm button
         const confirmBtn = document.getElementById('confirm-btn');
         confirmBtn.addEventListener('click', createVotingPool);
-        
-        // Status modal
-        const statusModal = new bootstrap.Modal(document.getElementById('statusModal'));
     });
     
-    // Update status function
     function updateStatus(message, isError = false, isSuccess = false) {
         const statusMessage = document.getElementById('status-message');
-        statusMessage.innerHTML = message;
+        const spinner = '<div class="spinner-border spinner-border-sm me-2" role="status"></div>';
+        statusMessage.innerHTML = `${spinner} ${message}`;
         
+        // Use Bootstrap alert classes for styling
         if (isError) {
-            statusMessage.className = 'text-danger';
+            statusMessage.className = 'alert alert-danger';
         } else if (isSuccess) {
-            statusMessage.className = 'text-success';
+            statusMessage.className = 'alert alert-success';
         } else {
-            statusMessage.className = '';
+            statusMessage.className = 'alert alert-info';
         }
     }
     
-    // Create voting pool function
     async function createVotingPool() {
-        // Check if MetaMask is installed
         if (typeof window.ethereum === 'undefined') {
             alert('Please install MetaMask first to sign the transaction.');
             return;
         }
         
-        // Get modal
         const statusModal = new bootstrap.Modal(document.getElementById('statusModal'));
         statusModal.show();
         
         try {
             updateStatus('Connecting to wallet...');
             
-            // Request account connection
             const provider = new ethers.providers.Web3Provider(window.ethereum);
             await provider.send("eth_requestAccounts", []);
             const signer = provider.getSigner();
             const address = await signer.getAddress();
             
-            // Verify connected wallet matches admin wallet
             if (address.toLowerCase() !== adminAddress.toLowerCase()) {
-                updateStatus('Error: Connected wallet address does not match admin wallet. Please connect the correct wallet.', true);
+                updateStatus('Error: Connected wallet address does not match admin wallet. Please connect with the correct account.', true);
                 return;
             }
             
-            updateStatus('Preparing transaction... This will create a voting pool that starts in 5 minutes and runs for 5 days.');
-            
-            // Basic ABI for createPool function
-            const contractABI = [{
-                "inputs": [
-                    {"internalType": "string", "name": "_category", "type": "string"},
-                    {"internalType": "string[]", "name": "_candidates", "type": "string[]"},
-                    {"internalType": "uint256", "name": "_startTime", "type": "uint256"},
-                    {"internalType": "uint256", "name": "_endTime", "type": "uint256"}
-                ],
-                "name": "createPool",
-                "outputs": [],
-                "stateMutability": "nonpayable",
-                "type": "function"
-            }];
+            const contractABI = [
+                {
+                    "anonymous": false,
+                    "inputs": [
+                        {"indexed": true, "internalType": "uint256", "name": "poolId", "type": "uint256"},
+                        {"indexed": false, "internalType": "string", "name": "category", "type": "string"}
+                    ],
+                    "name": "PoolCreated",
+                    "type": "event"
+                },
+                {
+                    "inputs": [
+                        {"internalType": "string", "name": "_category", "type": "string"},
+                        {"internalType": "string[]", "name": "_candidates", "type": "string[]"},
+                        {"internalType": "uint256", "name": "_startTime", "type": "uint256"},
+                        {"internalType": "uint256", "name": "_endTime", "type": "uint256"}
+                    ],
+                    "name": "createPool",
+                    "outputs": [],
+                    "stateMutability": "nonpayable",
+                    "type": "function"
+                }
+            ];
             
             const contract = new ethers.Contract(contractAddress, contractABI, signer);
             
-            updateStatus('Sending transaction. Please sign it in MetaMask...');
+            updateStatus('Sending transaction. Please sign it in your wallet...');
             
-            // Send the transaction with a high gas limit to avoid estimation issues
-            const tx = await contract.createPool(
-                category, 
-                candidates, 
-                startTimestamp, 
-                endTimestamp,
-                { 
-                    gasLimit: 10000000  // Set high gas limit to avoid estimation errors
-                }
-            );
+            const tx = await contract.createPool(category, candidates, startTimestamp, endTimestamp, { gasLimit: 1000000 });
             
-            updateStatus('Transaction sent successfully! Waiting for confirmation...');
+            updateStatus('Transaction sent! Waiting for blockchain confirmation...');
             
-            // Wait for confirmation
             const receipt = await tx.wait();
             
-            // Transaction success
-            updateStatus('Voting pool created successfully!<br>Redirecting to dashboard...', false, true);
+            updateStatus('Transaction confirmed! Extracting Pool ID...');
+
+            const event = receipt.logs.map(log => {
+                try { return contract.interface.parseLog(log); } catch (e) { return null; }
+            }).find(e => e && e.name === 'PoolCreated');
+
+            if (!event) {
+                throw new Error("Could not find PoolCreated event in the transaction receipt.");
+            }
             
-            // Redirect to the dashboard after a short delay
+            const poolId = event.args.poolId.toNumber();
+            updateStatus(`Pool ID ${poolId} found! Saving metadata to the application...`);
+
+            const response = await fetch("{% url 'api_save_pool_metadata' %}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    poolId: poolId,
+                    category: category,
+                    candidatesWithDescriptions: candidatesWithDescriptions
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(`Server failed to save metadata: ${errorData.message || 'Unknown error'}`);
+            }
+
+            updateStatus('Pool created and metadata saved successfully! Redirecting to dashboard...', false, true);
+            
             setTimeout(() => {
                 window.location.href = "{% url 'admin_dashboard' %}";
-            }, 2000); // 2-second delay
+            }, 3000);
             
         } catch (error) {
             console.error(error);
-            updateStatus('Error: ' + error.message + '<br><br>Please try using a date in the future instead of today.', true);
+            let errorMessage = error.reason || error.message;
+            updateStatus(`Error: ${errorMessage}`, true);
         }
     }
 </script>

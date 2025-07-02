@@ -72,14 +72,18 @@
 </style>
 
 <div class="container">
-    <h2 class="title">Voting for {{ category }}</h2>
+    <h2 class="title">Voting for {{ category_name }}</h2>
 
     {% if candidates %}
         <div class="candidates-list">
             {% for candidate in candidates %}
                 <div class="candidate-item">
                     <h3 class="candidate-name">{{ candidate.name }}</h3>
-                    <a href="{% url 'get_candidate_details' candidate.id %}" class="vote-btn">Select</a>
+                    {% if candidate.id %}
+                        <a href="{% url 'get_candidate_details' candidate.id %}" class="vote-btn">Select</a>
+                    {% else %}
+                        <p class="text-muted small">{{ candidate.description }}</p>
+                    {% endif %}
                 </div>
             {% endfor %}
         </div>

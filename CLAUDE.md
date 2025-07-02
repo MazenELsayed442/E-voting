@@ -6,7 +6,7 @@ This project is a decentralized voting system built with Django and a Hardhat/So
 
 ## Core Architecture:
 - **Frameworks:** Django (Python) for the web application, Hardhat (JavaScript/Solidity) for the blockchain.
-- **Deployment:** Hosted on Render for free with a PostgreSQL database.
+- **Deployment:** Hosted on Supabase for free with a PostgreSQL database. We use supabase with Render free hosting instead of render's database.
 - **Blockchain Interaction:** Users interact with the smart contracts via MetaMask for all on-chain actions (voting, admin tasks). The server **never** handles private keys.
 - **Configuration:** The application is configured for production using environment variables (e.g., contract addresses, node URL), not hardcoded values. ABI files are stored in `voting/abi/`.
 

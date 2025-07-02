@@ -6,10 +6,12 @@
     <h2 class="category-title">Available Voting Categories</h2>
 
     <div class="d-flex justify-content-center gap-3 flex-wrap">
-        {% for category in categories %}
-            <a href="{% url 'vote_category' category %}" class="category-btn btn btn-light shadow px-4 py-3">
-                {{ category }}
+        {% for pool in active_pools %}
+            <a href="{% url 'vote_category' pool.pool_id %}" class="category-btn btn btn-light shadow px-4 py-3">
+                {{ pool.category_name }}
             </a>
+        {% empty %}
+            <p>No active voting pools at the moment.</p>
         {% endfor %}
     </div>
 

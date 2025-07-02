@@ -25,7 +25,10 @@ from .views import (
     forgot_password, reset_password,
     
     # New contract-info API endpoint
-    contract_info
+    contract_info,
+    
+    # New API endpoint for saving pool metadata
+    api_save_pool_metadata
 )
 
 urlpatterns = [
@@ -49,7 +52,7 @@ urlpatterns = [
     path("resend-otp/", resend_otp, name="resend_otp"),
 
     # vote
-    path("vote/<str:category>/", vote_category, name="vote_category"),
+    path("vote/pool/<int:pool_id>/", vote_category, name="vote_category"),
     path("candidate/<int:candidate_id>/", get_candidate_details, name="get_candidate_details"),
     path("verify_totp/<int:candidate_id>/", verify_totp, name="verify_totp"),
     path("vote/<int:candidate_id>/", vote_candidate, name="vote_candidate"),
@@ -84,6 +87,7 @@ urlpatterns = [
     path('admin-portal/api/approve-proposal/', admin_approve_proposal, name='admin_approve_proposal'),
     path('admin-portal/api/reject-proposal/', admin_reject_proposal, name='admin_reject_proposal'),
     path('admin-portal/api/approve-replacement-request/', admin_approve_replacement_request, name='admin_approve_replacement_request'),
+    path('api/save-pool-metadata/', api_save_pool_metadata, name='api_save_pool_metadata'),
     path('api/contract-info/', contract_info, name='contract_info'),
     
     # Pool cancellation approval flow
