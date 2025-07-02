@@ -541,17 +541,51 @@ def vote_category(request, pool_id):
              messages.warning(request, "This voting pool is not currently active.")
              return redirect('vote_home')
 
-        # Now that we have the names, fetch the full candidate objects from our database
-        candidate_objects = Candidate.objects.filter(
-            name__in=candidate_names, 
-            category__pool_id=pool_id
-        )
-
-        # Check if we found corresponding candidates in our DB.
-        if not candidate_objects.exists() and candidate_names:
-            messages.warning(request, "While the voting pool exists on the blockchain, its candidate details (like images and descriptions) have not been saved to the application database. Please contact an administrator.")
-            # Render the page with just names as a fallback
-            candidate_objects = [{'name': name, 'id': None, 'image': None, 'description': 'No details available.'} for name in candidate_names]
+        # Prepare candidates list by combining blockchain and database data
+        candidate_objects = []
+        
+        for candidate_name in candidate_names:
+            # Try to find matching candidate in database
+            db_candidate = Candidate.objects.filter(
+                name=candidate_name,
+                category__pool_id=pool_id
+            ).first()
+            
+            if db_candidate:
+                # Use database candidate with full details
+                candidate_objects.append(db_candidate)
+            else:
+                # Create a fallback candidate object for blockchain-only data
+                class BlockchainCandidate:
+                    def __init__(self, name, pool_id, category_name):
+                        self.name = name
+                        self.id = None
+                        self.image = None
+                        self.description = 'Blockchain candidate - additional details not available in database.'
+                        self.party = ''
+                        self.pool_id = pool_id
+                        self.category = category_name  # Add category name for template compatibility
+                        
+                        # Get current vote count
+                        try:
+                            self.blockchain_votes = voting_contract.functions.getVotes(pool_id, name).call()
+                        except:
+                            self.blockchain_votes = 0
+                
+                candidate_objects.append(BlockchainCandidate(candidate_name, pool_id, category_name))
+        
+        # Get current vote counts from blockchain for all candidates
+        for candidate in candidate_objects:
+            try:
+                candidate.blockchain_votes = voting_contract.functions.getVotes(pool_id, candidate.name).call()
+            except Exception as e:
+                logger.error(f"Could not get vote count for {candidate.name} in pool {pool_id}: {e}")
+                candidate.blockchain_votes = 0
+        
+        # Show info message if some candidates lack database details
+        db_candidates_count = len([c for c in candidate_objects if hasattr(c, 'pk')])
+        if db_candidates_count < len(candidate_names) and candidate_names:
+            messages.info(request, f"Pool data loaded from blockchain. {len(candidate_names) - db_candidates_count} candidates are missing detailed information from the database.")
     except Exception as e:
         logger.error(f"Could not fetch pool details for pool_id {pool_id}: {e}")
         messages.error(request, "There was an error retrieving the voting information from the blockchain.")
