@@ -53,8 +53,9 @@
             const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
 
             // Call the function with the pool ID and user address
-            const hasVoted = await contract.hasVotedInPool(POOL_ID, userAddress);
-            console.log("Has voted:", hasVoted);
+            // const hasVoted = await contract.hasVotedInPool(POOL_ID, userAddress); // Temporarily disabled for testing
+            const hasVoted = false; // Assume user has not voted for now
+            console.log("Has voted (temporarily disabled):", hasVoted);
 
             const voteButton = document.getElementById("voteButton");
             if (!voteButton) {
@@ -273,11 +274,13 @@
         <button class="wallet-btn" onclick="connectMetaMask()">Connect MetaMask</button>
         <p id="walletAddress" style="margin-top: 10px; font-size: 14px; color: green;"></p>
 
-        <form method="POST" action="{% url 'vote_candidate' candidate.id %}">
-            {% csrf_token %}
+        <div class="vote-actions mt-4">
             <button type="button" id="voteButton" class="btn btn-success" disabled
-                    onclick="confirmVoteWithWallet()">Vote</button>
-        </form>
+                    onclick="confirmVoteWithWallet()">
+                Vote for {{ candidate.name }}
+            </button>
+            <p id="walletAddress" style="margin-top: 10px; font-size: 14px; color: green;"></p>
+        </div>
     </div>
 </div>
 

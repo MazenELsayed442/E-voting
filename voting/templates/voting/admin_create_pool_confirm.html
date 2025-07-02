@@ -92,7 +92,7 @@
     const startTimestamp = {{ start_timestamp }};
     const endTimestamp = {{ end_timestamp }};
     // These are JSON strings from Django, so we need to parse them.
-    const candidates = JSON.parse('{{ candidates|escapejs }}');
+    const candidates = JSON.parse('{{ candidates_json|escapejs }}');
     const candidatesWithDescriptions = JSON.parse('{{ candidates_with_descriptions|escapejs }}');
 
     document.addEventListener('DOMContentLoaded', function() {
