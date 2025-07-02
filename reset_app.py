@@ -9,16 +9,48 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'eVoting.settings')
 django.setup()
 
 # Import the Candidate model and any other relevant models
-from voting.models import Candidate
+from voting.models import Candidate, Category, PoolCancellationRequest, AdminReplacementRequest
 from django.core.cache import cache
 from django.db import connection
 
 print("===== إعادة تعيين تطبيق التصويت الإلكتروني =====")
 print("1. تنظيف قاعدة البيانات...")
 
-# Clear all candidates
-candidate_count = Candidate.objects.all().delete()[0]
-print(f"   - تم حذف جميع المرشحين ({candidate_count}) من قاعدة البيانات")
+def reset_voting_data():
+    """
+    Deletes all data from voting-related tables without affecting user accounts.
+    """
+    print("Starting the data reset process...")
+
+    # 1. Delete all Candidates
+    try:
+        candidate_count, _ = Candidate.objects.all().delete()
+        print(f"Successfully deleted {candidate_count} Candidate objects.")
+    except Exception as e:
+        print(f"Error deleting Candidates: {e}")
+
+    # 2. Delete all Categories
+    try:
+        category_count, _ = Category.objects.all().delete()
+        print(f"Successfully deleted {category_count} Category objects.")
+    except Exception as e:
+        print(f"Error deleting Categories: {e}")
+        
+    # 3. Delete all Pool Cancellation Requests
+    try:
+        pool_req_count, _ = PoolCancellationRequest.objects.all().delete()
+        print(f"Successfully deleted {pool_req_count} PoolCancellationRequest objects.")
+    except Exception as e:
+        print(f"Error deleting PoolCancellationRequests: {e}")
+        
+    # 4. Delete all Admin Replacement Requests
+    try:
+        admin_req_count, _ = AdminReplacementRequest.objects.all().delete()
+        print(f"Successfully deleted {admin_req_count} AdminReplacementRequest objects.")
+    except Exception as e:
+        print(f"Error deleting AdminReplacementRequests: {e}")
+
+    print("\nData reset complete. User accounts were not affected.")
 
 # Clear any cached blockchain data
 cache_keys = [
@@ -77,4 +109,12 @@ except Exception as e:
 
 print("\n===== اكتملت إعادة تعيين التطبيق =====")
 print("يمكنك الآن زيارة التطبيق في المتصفح على العنوان: http://127.0.0.1:8000")
-print("ملاحظة: تأكد من أن خادم Hardhat للبلوكتشين قيد التشغيل") 
+print("ملاحظة: تأكد من أن خادم Hardhat للبلوكتشين قيد التشغيل")
+
+if __name__ == '__main__':
+    # Add a confirmation step to prevent accidental execution
+    confirm = input("Are you sure you want to delete all candidates, categories, and proposals? This action cannot be undone. (yes/no): ")
+    if confirm.lower() == 'yes':
+        reset_voting_data()
+    else:
+        print("Operation cancelled.") 
