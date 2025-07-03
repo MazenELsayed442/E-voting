@@ -172,8 +172,12 @@ MEDIA_URL = "/media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 AUTH_USER_MODEL = "voting.CustomUser"
 WEB3_PROVIDER = "http://127.0.0.1:8545"
-# Smart contract address alias
-VOTING_CONTRACT_ADDRESS = "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512"
+
+# Smart contract address loaded from environment variables
+# This allows you to configure the address for production on Render without changing the code.
+# The second argument is a default value for local development.
+VOTING_CONTRACT_ADDRESS = os.environ.get('VOTING_CONTRACT_ADDRESS', None)
+VOTING_ADMIN_CONTRACT_ADDRESS = os.environ.get('VOTING_ADMIN_CONTRACT_ADDRESS', None)
 
 
 
