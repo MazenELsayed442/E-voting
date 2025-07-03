@@ -257,6 +257,14 @@ class PoolCancellationRequest(models.Model):
         return f"Cancellation Request for Pool #{self.pool_id} by {self.initiator.username}"
     
     @property
+    def type(self):
+        return 'Cancel Pool'
+
+    @property
+    def details(self):
+        return self.reason
+    
+    @property
     def is_approved(self):
         """Check if the request is approved."""
         return self.status == 'approved' or self.status == 'executed'
@@ -369,6 +377,14 @@ class AdminReplacementRequest(models.Model):
     
     def __str__(self):
         return f"Replace {self.admin_to_replace.username} with {self.replacement_candidate.username} by {self.initiator.username}"
+    
+    @property
+    def type(self):
+        return 'Replace Admin'
+
+    @property
+    def details(self):
+        return self.reason
     
     @property
     def is_approved(self):
