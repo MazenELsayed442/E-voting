@@ -27,13 +27,12 @@ services:
       - key: WEB_CONCURRENCY
         value: 4
       - key: PYTHON_VERSION
-        value: 3.11.4 # Specify your desired Python version
+        value: 3.9.13
       - key: DEBUG
         value: False
-      - key: INFURA_PROJECT_ID
-        value: "YOUR_INFURA_PROJECT_ID_HERE" # IMPORTANT: Paste your Infura ID here
-      # The contract addresses will be updated after you deploy them to Polygon
+      - key: WEB3_NODE_URL
+        value: "YOUR_ALCHEMY_POLYGON_MAINNET_URL_HERE" # IMPORTANT: Paste your Alchemy URL here
       - key: VOTING_CONTRACT_ADDRESS
-        value: "YOUR_VOTING_CONTRACT_ADDRESS"
+        value: "YOUR_VOTING_CONTRACT_ADDRESS_HERE"
       - key: ADMIN_CONTRACT_ADDRESS
         value: "YOUR_ADMIN_CONTRACT_ADDRESS" 

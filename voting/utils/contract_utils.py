@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 # --- Configuration ---
 # The node URL and contract addresses should be set as environment variables in production.
-NODE_URL = os.environ.get("WEB3_NODE_URL", "https://polygon-mainnet.infura.io/v3/982333c3771f4b48adb4f518098a444b")
+NODE_URL = os.environ.get("WEB3_NODE_URL", "https://polygon-mainnet.g.alchemy.com/v2/YOUR_ALCHEMY_API_KEY")
 VOTING_CONTRACT_ADDRESS = os.environ.get("VOTING_CONTRACT_ADDRESS")
 ADMIN_CONTRACT_ADDRESS = os.environ.get("ADMIN_CONTRACT_ADDRESS")
 
