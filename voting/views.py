@@ -1176,17 +1176,17 @@ def admin_cancel_pool_list(request):
         print(f"Error with web3 connection: {e}")
     
     # If no active pools found in blockchain, use placeholder data
-    if not active_pools:
-        # Get data from database as fallback
-        categories = Candidate.objects.values_list('category', flat=True).distinct()
+    # if not active_pools:
+    #     # Get data from database as fallback
+    #     categories = Candidate.objects.values_list('category', flat=True).distinct()
         
-        for i, category in enumerate(categories):
-            active_pools.append({
-                'id': i,
-                'category': category,
-                'start_time': 'N/A',
-                'end_time': 'N/A'
-            })
+    #     for i, category in enumerate(categories):
+    #         active_pools.append({
+    #             'id': i,
+    #             'category': category,
+    #             'start_time': 'N/A',
+    #             'end_time': 'N/A'
+    #         })
     
     # Get contract address and ABI for MetaMask integration
     admin_contract_address = get_admin_contract_address()
@@ -1584,24 +1584,74 @@ def admin_submit_cancel_request(request):
 
 @admin_required
 def admin_pending_cancellations(request):
-    """View to list all pending cancellation requests."""
-    # Get all pending cancellation requests
-    pending_requests = PoolCancellationRequest.objects.filter(status='pending')
+    """View to list all cancellation proposals, sourced from the blockchain."""
+    from .utils.contract_utils import get_web3, get_admin_contract
+    from .models import CustomUser
+    from types import SimpleNamespace
+
+    pending_requests = []
+    approved_requests = []
+    executed_requests = []
     
-    # Get all approved but not executed requests
-    approved_requests = PoolCancellationRequest.objects.filter(
-        status='approved', 
-        transaction_hash__isnull=True
-    )
-    
-    # Get recently executed requests (limit to 5)
-    executed_requests = PoolCancellationRequest.objects.filter(
-        status='executed'
-    ).order_by('-updated_at')[:5]
-    
-    # Get contract address and ABI for the frontend
+    # Get contract address and ABI for the frontend (needed in all cases)
     admin_contract_address = get_admin_contract_address()
     admin_contract_abi = load_abi(ADMIN_ABI_PATH)
+
+    try:
+        web3 = get_web3()
+        if not web3.is_connected():
+            messages.error(request, "Cannot connect to the blockchain to fetch proposals.")
+        else:
+            admin_contract = get_admin_contract()
+            next_proposal_id = admin_contract.functions.nextProposalId().call()
+
+            for i in range(next_proposal_id):
+                try:
+                    # 1. Fetch from chain
+                    proposal_details = admin_contract.functions.proposals(i).call()
+                    (prop_id, pType, proposer_address, data, approvalCount, executed) = proposal_details
+
+                    # pType 0 is CancelPool, 1 is ReplaceAdmin. We only want cancellations here.
+                    if pType != 0:
+                        continue
+
+                    pool_id = web3.codec.decode(['uint256'], data)[0]
+
+                    # 2. Enrich with DB data
+                    db_request = PoolCancellationRequest.objects.filter(blockchain_proposal_id=prop_id).select_related('initiator').first()
+                    initiator = db_request.initiator if db_request else CustomUser.objects.filter(wallet_address__iexact=proposer_address).first()
+                    
+                    # Mimic a model object for the template to use
+                    proposal_obj = SimpleNamespace(
+                        id=db_request.id if db_request else prop_id,
+                        blockchain_proposal_id=prop_id,
+                        pool_id=pool_id,
+                        initiator=initiator,
+                        reason=db_request.reason if db_request else "Reason not available in database.",
+                        approval_count=approvalCount,
+                        is_from_blockchain=True # Flag for template if needed
+                    )
+                    
+                    # 3. Categorize the proposal based on its on-chain state
+                    if executed:
+                        proposal_obj.status = 'executed'
+                        executed_requests.append(proposal_obj)
+                    elif approvalCount >= 2: # REQUIRED_APPROVALS is 2 in the contract
+                        proposal_obj.status = 'approved'
+                        approved_requests.append(proposal_obj)
+                    else:
+                        proposal_obj.status = 'pending'
+                        pending_requests.append(proposal_obj)
+                except Exception as e:
+                    logger.error(f"Could not process proposal ID {i}: {e}")
+
+            # Sort executed requests by proposal ID descending (most recent first)
+            executed_requests.sort(key=lambda p: p.blockchain_proposal_id, reverse=True)
+            executed_requests = executed_requests[:5] # Limit to 5 most recent
+    
+    except Exception as e:
+        logger.error(f"Failed to fetch proposals from blockchain: {e}")
+        messages.error(request, f"Could not retrieve proposal data from the blockchain. Please check the connection.")
     
     context = {
         'active_tab': 'pending_cancellations',
