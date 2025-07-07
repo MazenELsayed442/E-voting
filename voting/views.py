@@ -497,14 +497,7 @@ def vote_home(request):
     
     # If categories are empty (blockchain connection failed or no active pools),
     # fall back to database which should be in sync with blockchain at this point
-    if not active_pools:
-        # Fetch distinct categories from the database
-        db_categories = Category.objects.all()
-        for cat in db_categories:
-            active_pools.append({
-                'pool_id': cat.pool_id,
-                'category_name': cat.name
-            })
+ 
     
     # If still no categories, provide empty list instead of defaults
     # We no longer want to show hardcoded categories
@@ -914,27 +907,27 @@ def admin_dashboard(request):
         print(f"Blockchain connection error: {e}")
     
     # If we couldn't get active pools from blockchain, use a fallback
-    if not active_pools:
-        # Get categories from database
-        categories = Candidate.objects.values_list('category', flat=True).distinct()
+    # if not active_pools:
+    #     # Get categories from database
+    #     categories = Candidate.objects.values_list('category', flat=True).distinct()
         
-        # Create placeholder pools for display
-        for i, category in enumerate(categories):
-            candidates_count = Candidate.objects.filter(category=category).count()
+    #     # Create placeholder pools for display
+    #     for i, category in enumerate(categories):
+    #         candidates_count = Candidate.objects.filter(category=category).count()
             
-            # Get vote count from database
-            vote_count = sum(c.votes for c in Candidate.objects.filter(category=category))
+    #         # Get vote count from database
+    #         vote_count = sum(c.votes for c in Candidate.objects.filter(category=category))
             
-            active_pools.append({
-                'id': i,
-                'category': category,
-                'candidates': candidates_count,
-                'votes': vote_count,
-                'start_date': 'N/A',
-                'end_date': 'N/A',
-                'status': 'Active',
-                'is_active': True
-            })
+    #         active_pools.append({
+    #             'id': i,
+    #             'category': category,
+    #             'candidates': candidates_count,
+    #             'votes': vote_count,
+    #             'start_date': 'N/A',
+    #             'end_date': 'N/A',
+    #             'status': 'Active',
+    #             'is_active': True
+    #         })
         
         active_pools_count = len(active_pools)
         total_votes = sum(pool['votes'] for pool in active_pools)

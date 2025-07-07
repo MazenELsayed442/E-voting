@@ -207,9 +207,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById("allowVoterStatus").innerHTML = 
                     '<div class="alert alert-info">Transaction in progress... A small amount of POL (approx. 5 cents) will be transferred to the new voter for gas fees.</div>';
                 
-                // --- MODIFIED: Send 0.05 POL with the transaction ---
+                // --- MODIFIED: Send 0.28 POL with the transaction ---
                 // This amount is an approximation of 5 cents.
-                const amountToSend = ethers.utils.parseEther("0.05");
+                const amountToSend = ethers.utils.parseEther("0.28");
 
                 // Call the addVoter function on the contract, sending POL
                 const tx = await contract.addVoter(address, { 
