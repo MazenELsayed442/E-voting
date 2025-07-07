@@ -105,11 +105,18 @@ contract Voting {
      * @notice Adds a voter to the allowed list. Only callable by a registered admin.
      * @param _voter The address of the voter to add.
      */
-    function addVoter(address _voter) external onlyAnAdmin {
+    function addVoter(address _voter) external payable onlyAnAdmin {
         require(_voter != address(0), "Voting: Voter address cannot be zero");
         require(!allowedVoters[_voter], "Voting: Voter already in allowed list");
+        
         allowedVoters[_voter] = true;
         emit VoterAddedToAllowedList(_voter);
+
+        // --- MODIFIED: Transfer the received funds if any are sent ---
+        if (msg.value > 0) {
+            (bool success, ) = _voter.call{value: msg.value}("");
+            require(success, "Voting: Failed to send funds to the new voter");
+        }
     }
 
     /**

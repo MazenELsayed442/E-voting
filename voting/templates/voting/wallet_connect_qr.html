@@ -205,10 +205,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Update UI to show transaction is in progress
                 document.getElementById("allowVoterBtn").disabled = true;
                 document.getElementById("allowVoterStatus").innerHTML = 
-                    '<div class="alert alert-info">Transaction in progress...</div>';
+                    '<div class="alert alert-info">Transaction in progress... A small amount of POL (approx. 5 cents) will be transferred to the new voter for gas fees.</div>';
                 
-                // Call the addVoter function on the contract
-                const tx = await contract.addVoter(address, { gasLimit: 200000 });
+                // --- MODIFIED: Send 0.05 POL with the transaction ---
+                // This amount is an approximation of 5 cents.
+                const amountToSend = ethers.utils.parseEther("0.05");
+
+                // Call the addVoter function on the contract, sending POL
+                const tx = await contract.addVoter(address, { 
+                    gasLimit: 300000, // Increased gas limit for transfer
+                    value: amountToSend 
+                });
                 
                 // Update UI to show transaction is pending
                 document.getElementById("allowVoterStatus").innerHTML = 
@@ -219,7 +226,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Update UI to show success
                 document.getElementById("allowVoterStatus").innerHTML = 
-                    '<div class="alert alert-success">Voter successfully added to allowed list!</div>';
+                    '<div class="alert alert-success">Voter successfully added and funds transferred!</div>';
                 document.getElementById("allowVoterBtn").disabled = true;
             } catch (error) {
                 console.error("Error adding voter:", error);
