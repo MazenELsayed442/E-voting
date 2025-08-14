@@ -31,13 +31,15 @@ from .views import (
     api_save_pool_metadata,
     
     # New view for blockchain-only candidates
-    vote_blockchain_candidate
+    vote_blockchain_candidate,
+    healthz
 )
 
 urlpatterns = [
     # main pages
     path("", home, name="home"),
     path("vote/", vote_home, name="vote"),
+    path("healthz/", healthz, name="healthz"),
 
     # accounts management
     path("register/", register, name="register"),

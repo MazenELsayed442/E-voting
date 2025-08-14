@@ -27,6 +27,7 @@ from django.views.decorators.http import require_POST
 from datetime import datetime, timedelta
 import socket
 from django.db import transaction
+from django.db import connection
 
 # Local application imports
 from .forms import CustomUserCreationForm, LoginForm
@@ -34,6 +35,22 @@ from .models import Candidate, CustomUser, Voter, PoolCancellationRequest, Admin
 from .utils.contract_utils import get_vote_count, get_web3, get_contract, get_pool_details, get_pool_count, get_voting_contract, get_admin_contract, get_voting_contract_address, get_admin_contract_address, load_abi, VOTING_ABI_PATH, ADMIN_ABI_PATH
 from .utils.blockchain_monitor import BlockchainMonitor
 logger = logging.getLogger(__name__)
+
+
+def healthz(request):
+    """Lightweight health check endpoint for uptime monitors.
+    Also performs a minimal DB query to keep the database from idling.
+    """
+    db_status = "unknown"
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+        db_status = "ok"
+    except Exception:
+        # Keep returning 200 so uptime pingers don't stop hitting the endpoint
+        db_status = "error"
+    return JsonResponse({"status": "ok", "db": db_status}, status=200)
 
 
 def home(request):
@@ -952,37 +969,82 @@ def admin_dashboard(request):
             'is_active': admin.is_active
         })
     
-    # Get pending cancellation requests
-    pending_cancellation_requests = PoolCancellationRequest.objects.all()
-    pending_proposals = pending_cancellation_requests.count()
-    
-    # Prepare proposals for the UI
-    pending_requests = []
-    for req in pending_cancellation_requests:
-        approval_status_val = "Unknown"
-        
-        if req.status != 'pending':
-            # For any status that is not 'pending', we can consider it handled in this context.
-            # You could be more specific e.g. req.get_status_display() if you want to show "Approved", "Rejected", etc.
-            approval_status_val = f"Handled ({req.get_status_display()})"
-        else:
-            # Original logic for pending requests
-            if req.can_be_approved_by(request.user):
-                approval_status_val = "Awaiting your approval"
-            elif req.initiator == request.user:
-                approval_status_val = "Waiting for other admin (you initiated)"
-            else:
-                approval_status_val = "Waiting for other admin"
+    # --- Fetch Proposals from Blockchain ---
+    # This section replaces the previous database query for proposals.
+    if blockchain_connected:
+        try:
+            from .utils.contract_utils import get_admin_contract
+            
+            admin_contract = get_admin_contract()
+            next_proposal_id = admin_contract.functions.nextProposalId().call()
+            all_proposals_for_ui = []
 
-        pending_requests.append({
-            'id': req.id,
-            'type': 'Cancel Pool',
-            'proposer': req.initiator.username if req.initiator else 'System',
-            'pool_id': req.pool_id,
-            'blockchain_proposal_id': req.blockchain_proposal_id,
-            'approval_status_text': approval_status_val
-        })
-    
+            for i in range(next_proposal_id):
+                proposal_details = admin_contract.functions.proposals(i).call()
+                (prop_id, pType, proposer_address, data, approvalCount, executed) = proposal_details
+
+                is_pending = not executed and approvalCount < 2
+                if is_pending:
+                    pending_proposals += 1
+
+                # Enrich with DB data for display
+                db_request = None
+                proposal_type_str = "Unknown"
+                pool_id_val = None
+
+                if pType == 0:  # Cancel Pool
+                    proposal_type_str = "Cancel Pool"
+                    db_request = PoolCancellationRequest.objects.filter(blockchain_proposal_id=prop_id).select_related('initiator').first()
+                    pool_id_val = web3.codec.decode(['uint256'], data)[0]
+                elif pType == 1:  # Replace Admin
+                    proposal_type_str = "Replace Admin"
+                    db_request = AdminReplacementRequest.objects.filter(blockchain_proposal_id=prop_id).select_related('initiator').first()
+                
+                initiator = db_request.initiator if db_request else CustomUser.objects.filter(wallet_address__iexact=proposer_address).first()
+
+                # Determine approval status text
+                if executed:
+                    approval_status_val = "Handled (Executed)"
+                elif approvalCount >= 2:
+                    approval_status_val = "Handled (Approved)"
+                else:  # is_pending
+                    if initiator == request.user:
+                        approval_status_val = "Waiting for other admin (you initiated)"
+                    else:
+                        approval_status_val = "Awaiting your approval"
+
+                all_proposals_for_ui.append({
+                    'id': db_request.id if db_request else prop_id,
+                    'type': proposal_type_str,
+                    'proposer': initiator.username if initiator else proposer_address,
+                    'pool_id': pool_id_val,
+                    'blockchain_proposal_id': prop_id,
+                    'approval_status_text': approval_status_val,
+                    'is_pending': is_pending
+                })
+            
+            # Use the blockchain-sourced list for the context
+            pending_requests = all_proposals_for_ui
+
+        except Exception as e:
+            logger.error(f"Error fetching proposal data from blockchain: {e}")
+            pending_requests = [] # Fallback to empty list on error
+    else:
+        # Fallback for when blockchain is not connected (original behavior)
+        pending_requests_db = PoolCancellationRequest.objects.all()
+        pending_proposals = pending_requests_db.filter(status='pending').count()
+        pending_requests = []
+        for req in pending_requests_db:
+            # Simplified status for offline mode
+            pending_requests.append({
+                'id': req.id,
+                'type': 'Cancel Pool',
+                'proposer': req.initiator.username if req.initiator else 'System',
+                'pool_id': req.pool_id,
+                'blockchain_proposal_id': req.blockchain_proposal_id,
+                'approval_status_text': req.get_status_display()
+            })
+
     context = {
         'active_tab': 'dashboard',
         'active_pools_count': active_pools_count,
